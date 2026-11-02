@@ -83,15 +83,27 @@
     </div>
 
     <div class="pane hidden" data-pane="hl">
+      <div class="bar">
+        <label>Play with <select id="hlMode"><option value="cards">🃏 A deck of cards</option><option value="list">📝 My own list of numbers</option></select></label>
+      </div>
+      <div id="hlCardsOpts" style="display:grid;gap:10px">
+        <div class="muted">A fresh shuffled deck every game. Guests see a card and guess whether the next one is higher or lower. A pair scores nothing.</div>
+        <div class="row2">
+          <label>Aces <select id="hlAces"><option value="both">High or low (counts whichever way helps the guest)</option><option value="high">Always high</option><option value="low">Always low</option></select></label>
+          <label>Rounds <input id="hlRounds" type="number" min="3" max="51" value="10" /></label>
+        </div>
+      </div>
+      <div id="hlListOpts" class="hidden" style="display:grid;gap:10px">
       <div class="muted">One item per line as "label | number". Each round shows the last item's number, and the crowd guesses whether the next one is higher or lower. Neighbouring items need different numbers.</div>
       <textarea id="hlText" placeholder="First Moon landing | 1969&#10;MTV launches | 1981"></textarea>
       <div class="row2">
         <label>Unit (optional, e.g. year, BPM, million streams) <input id="hlUnit" placeholder="year" /></label>
-        <label>Seconds per round <input id="hlSecs" type="number" min="5" max="120" value="15" /></label>
+        <span class="bar" style="gap:8px;align-self:end"><button id="loadHl">Load starter set (years)</button><button id="loadCoupleHl" class="wedding-only">💍 Couple template</button></span>
+      </div>
       </div>
       <div class="row2">
-        <span class="bar" style="gap:8px"><button id="loadHl">Load starter set (years)</button><button id="loadCoupleHl" class="wedding-only">💍 Couple template</button></span>
-        <button class="primary" id="startHl">Start higher or lower</button>
+        <label>Seconds per round <input id="hlSecs" type="number" min="5" max="120" value="10" /></label>
+        <button class="primary" id="startHl" style="align-self:end">Start higher or lower</button>
       </div>
     </div>
 

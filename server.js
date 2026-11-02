@@ -105,8 +105,10 @@ function startQuiz(room, { questions, seconds }, variant = 'quiz') {
       options: (q.options || []).map((o) => clean(o, 120)).filter(Boolean).slice(0, 4),
       answer: Number(q.answer),
       hl: q.hl,
+      // Card rounds: "any" = every guess counts (an Ace with aces high-or-low), "none" = a pair, nobody scores.
+      outcome: q.outcome === 'any' || q.outcome === 'none' ? q.outcome : null,
     }))
-    .filter((q) => q.q && q.options.length >= 2 && q.answer >= 0 && q.answer < q.options.length);
+    .filter((q) => q.q && q.options.length >= 2 && (q.outcome || (q.answer >= 0 && q.answer < q.options.length)));
   if (!qs.length) return 'No valid questions.';
   for (const p of room.players.values()) p.score = 0;
   room.game = {
@@ -155,7 +157,7 @@ function quizReveal(room) {
     const p = room.players.get(pid);
     if (!p) continue;
     let pts = 0;
-    if (a.choice === q.answer) {
+    if (q.outcome === 'any' || (!q.outcome && a.choice === q.answer)) {
       // 500 for being right, up to 500 more for speed.
       const left = Math.max(0, g.deadline - a.at);
       pts = 500 + Math.round(500 * (left / total));
@@ -180,7 +182,39 @@ function quizAnswer(room, player, choice) {
 // ---------- higher or lower ----------
 // A chain of items with numbers. Each round shows the previous item's number
 // and asks whether the next item's number is higher or lower.
-function startHigherLower(room, { items, unit, seconds }) {
+const SUITS = ['♠', '♥', '♦', '♣'];
+const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+// Playing-card higher or lower. aces: 'both' (an Ace counts high or low, whichever
+// helps you, so any guess involving an Ace scores), 'high' (Ace = 14) or 'low' (Ace = 1).
+// A pair (same rank) means nobody scores that round.
+function startCardHigherLower(room, { rounds, aces, seconds }) {
+  const mode = ['both', 'high', 'low'].includes(aces) ? aces : 'both';
+  const n = Math.min(51, Math.max(3, Number(rounds) || 10));
+  const deck = shuffle(SUITS.flatMap((s) => RANKS.map((r) => ({ r, s }))));
+  const val = (c) => (c.r === 'A' ? (mode === 'high' ? 14 : 1) : RANKS.indexOf(c.r) + 1);
+  const questions = [];
+  for (let i = 1; i <= n; i++) {
+    const a = deck[i - 1];
+    const b = deck[i];
+    let outcome = null;
+    let answer = -1;
+    if (mode === 'both' && (a.r === 'A' || b.r === 'A')) outcome = 'any';
+    else if (val(a) === val(b)) outcome = 'none';
+    else answer = val(b) > val(a) ? 0 : 1;
+    questions.push({
+      q: `Next card: higher or lower than ${a.r}${a.s}?`,
+      options: ['Higher', 'Lower'],
+      answer,
+      outcome,
+      hl: { cards: true, aces: mode, a: { label: `${a.r}${a.s}`, card: a }, b: { label: `${b.r}${b.s}`, card: b }, unit: '' },
+    });
+  }
+  return startQuiz(room, { questions, seconds: seconds || 10 }, 'hl');
+}
+
+function startHigherLower(room, { items, unit, seconds, mode, rounds, aces }) {
+  if (mode === 'cards') return startCardHigherLower(room, { rounds, aces, seconds });
   const list = (Array.isArray(items) ? items : [])
     .map((i) => ({ label: clean(i.label, 120), value: Number(i.value) }))
     .filter((i) => i.label && Number.isFinite(i.value));
@@ -311,7 +345,7 @@ function hostView(room) {
         type: 'quiz', variant: g.variant, phase: g.phase, index: g.index, total: g.questions.length,
         seconds: g.seconds, deadline: g.deadline, now: Date.now(),
         question: q ? { q: q.q, options: q.options } : null,
-        hl: q?.hl ? hlView(q.hl, g.phase === 'reveal') : null,
+        hl: q?.hl ? hlView(q.hl, g.phase === 'reveal', q.outcome) : null,
         answer: g.phase === 'reveal' ? q.answer : null,
         answeredCount: g.answers.size, counts: g.phase === 'reveal' ? counts : null,
       },
@@ -329,7 +363,10 @@ function hostView(room) {
 }
 
 // The second item's number stays hidden until the reveal.
-const hlView = (hl, reveal) => ({ a: hl.a, b: { label: hl.b.label, value: reveal ? hl.b.value : null }, unit: hl.unit });
+const hlView = (hl, reveal, outcome) =>
+  hl.cards
+    ? { cards: true, aces: hl.aces, a: hl.a, b: reveal ? hl.b : null, outcome: reveal ? outcome : null, unit: '' }
+    : { a: hl.a, b: { label: hl.b.label, value: reveal ? hl.b.value : null }, unit: hl.unit };
 
 function playerView(room, p) {
   const g = room.game;
@@ -348,7 +385,7 @@ function playerView(room, p) {
       game: {
         type: 'quiz', variant: g.variant, phase: g.phase, index: g.index, total: g.questions.length,
         deadline: g.deadline, now: Date.now(), seconds: g.seconds,
-        hl: q?.hl ? hlView(q.hl, g.phase === 'reveal') : null,
+        hl: q?.hl ? hlView(q.hl, g.phase === 'reveal', q.outcome) : null,
         options: q ? q.options : null, question: q ? q.q : null,
         myChoice: mine ? mine.choice : null,
         answer: g.phase === 'reveal' ? q.answer : null,

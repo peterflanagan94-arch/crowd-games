@@ -20,7 +20,7 @@ Wedding packs:
 - **Bingo:** classic 75-number bingo. Every phone gets its own card. Tap numbers to mark them and hit BINGO!, and the server checks the claim against the calls.
 - **Music bingo:** paste a playlist and each card gets song titles (4x4 for 16 or more songs, 5x5 for 24 or more). Tap songs in the DJ panel as you play them. You can hide titles on the big screen so the crowd has to recognise each song by ear.
 
-- **Higher or lower:** each round shows a number, and guests guess whether the next item's number is higher or lower. Uses the same scoring as the quiz.
+- **Higher or lower:** play with a freshly shuffled **deck of cards** (the default) or your own list of numbers. In card mode, aces can be set to *high or low* (an Ace counts whichever way helps the guest), *always high* or *always low*, and a pair scores nothing. Scoring works the same as the quiz.
 - **Crowd vote:** a live poll on the big screen, for things like "What should I play next?". Guests can change their vote until you close it.
 
 Winning patterns: one line, two lines or full house. You can change the pattern mid-game, for example going from line to full house.

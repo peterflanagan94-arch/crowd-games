@@ -100,6 +100,14 @@ function renderPoll(g) {
 }
 
 const HL_SHAPES = ['▲', '▼'];
+// Playing card face (or back when c is null).
+function cardHtml(c, size = '') {
+  if (!c) return `<div class="pcard back ${size}"><div class="pback"></div></div>`;
+  const red = c.s === '♥' || c.s === '♦';
+  return `<div class="pcard ${red ? 'red' : ''} ${size}"><span class="pc tl">${c.r}<br>${c.s}</span><span class="pcs">${c.s}</span><span class="pc br">${c.r}<br>${c.s}</span></div>`;
+}
+const ACE_NOTE = { both: 'Aces count high or low, whichever helps you', high: 'Aces are high', low: 'Aces are low' };
+
 const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
 
 function renderQuiz(g, me) {
@@ -119,15 +127,25 @@ function renderQuiz(g, me) {
   }
   if (g.phase === 'reveal') {
     let cls = 'meh', msg = "Time's up!";
-    if (g.myChoice != null) [cls, msg] = g.myChoice === g.answer ? ['good', `Correct! +${g.lastPoints}`] : ['bad', 'Not this time'];
-    m.innerHTML = `<div class="result ${cls}"><div class="big">${msg}</div>
-      <p>The answer was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p></div>
+    if (g.myChoice != null) [cls, msg] = g.lastPoints > 0 ? ['good', `Correct! +${g.lastPoints}`] : ['bad', 'Not this time'];
+    let detail;
+    if (isHl && g.hl.cards) {
+      const note = { any: 'An Ace! Every guess scores.', none: 'A pair! Nobody scores this round.' }[g.hl.outcome] || `It was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>`;
+      detail = `<div class="pcards">${cardHtml(g.hl.a.card, 'sm')}${cardHtml(g.hl.b.card, 'sm')}</div><p>${note}</p>`;
+    } else {
+      detail = `<p>The answer was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p>`;
+    }
+    m.innerHTML = `<div class="result ${cls}"><div class="big">${msg}</div>${detail}</div>
       <div class="center muted">You're #${me.rank} with ${me.score} points</div>`;
     return;
   }
   // question
   const answered = g.myChoice != null;
-  const qHtml = isHl
+  const qHtml = isHl && g.hl.cards
+    ? `<div class="pcards">${cardHtml(g.hl.a.card, 'sm')}${cardHtml(null, 'sm')}</div>
+       <div class="center" style="font-weight:800;font-size:20px">Is the next card higher or lower?</div>
+       <div class="center muted" style="font-size:13px">${ACE_NOTE[g.hl.aces]}. A pair scores nothing.</div>`
+    : isHl
     ? `<div class="center muted">${esc(g.hl.a.label)}: <b style="color:var(--text)">${fmtNum(g.hl.a.value)}</b>${unit}</div>
        <div class="center" style="font-weight:800;font-size:20px">Higher or lower?<br><span style="color:var(--accent2)">${esc(g.hl.b.label)}</span></div>`
     : `<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`;

@@ -82,6 +82,27 @@ server.listen(0, async () => {
   assert.equal(latest.get('Ana').game.hl.b.value, 20);
   assert.ok(latest.get('Ana').game.lastPoints > 0 && latest.get('Ben').game.lastPoints === 0);
 
+  // Higher or lower with a deck of cards
+  const R = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  for (const aces of ['both', 'high', 'low']) {
+    r = await call(host, 'host:startHigherLower', { mode: 'cards', aces, rounds: 51 });
+    assert.ok(r.ok, r.error);
+    const qs = room.game.questions;
+    assert.equal(qs.length, 51);
+    const seen = new Set(qs.map((q) => q.hl.a.label).concat(qs.at(-1).hl.b.label));
+    assert.equal(seen.size, 52, 'whole deck, no repeats');
+    for (const q of qs) {
+      const v = (c) => (c.r === 'A' ? (aces === 'high' ? 14 : 1) : R.indexOf(c.r) + 1);
+      const { a, b } = q.hl;
+      if (aces === 'both' && (a.card.r === 'A' || b.card.r === 'A')) assert.equal(q.outcome, 'any');
+      else if (v(a.card) === v(b.card)) assert.equal(q.outcome, 'none');
+      else assert.equal(q.answer, v(b.card) > v(a.card) ? 0 : 1);
+    }
+  }
+  await call(host, 'host:next');
+  await wait(100);
+  assert.equal(latest.get('Ana').game.hl.b, null, 'next card hidden from phones');
+
   // Crowd vote
   assert.ok((await call(host, 'host:startPoll', { question: 'Next?', options: ['Only one'] })).error);
   assert.ok((await call(host, 'host:startPoll', { question: 'Next?', options: ['House', 'Rock', 'Pop'] })).ok);

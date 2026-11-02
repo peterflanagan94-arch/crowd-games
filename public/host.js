@@ -145,6 +145,7 @@ $('#loadCoupleQuiz').onclick = async () => {
 $('#loadWeddingTrivia').onclick = async () => { $('#quizText').value = quizToText((await getPack()).trivia); };
 $('#loadFloorFillers').onclick = async () => { $('#songText').value = (await getPack()).floorFillers.join('\n'); };
 $('#loadCoupleHl').onclick = async () => {
+  $('#hlMode').value = 'list'; $('#hlMode').onchange();
   $('#hlText').value = (await getPack()).coupleHigherLower.map((i) => `${fill(i.label)} | ${i.value}`).join('\n');
   $('#hlUnit').value = '';
   alert('Template loaded. Replace each 0 with the real number before the night.');
@@ -159,7 +160,15 @@ $('#loadHl').onclick = async () => {
   $('#hlText').value = d.items.map((i) => `${i.label} | ${i.value}`).join('\n');
   $('#hlUnit').value = d.unit;
 };
+$('#hlMode').onchange = () => {
+  const cards = $('#hlMode').value === 'cards';
+  $('#hlCardsOpts').classList.toggle('hidden', !cards);
+  $('#hlListOpts').classList.toggle('hidden', cards);
+};
 $('#startHl').onclick = async () => {
+  if ($('#hlMode').value === 'cards') {
+    return send('host:startHigherLower', { mode: 'cards', aces: $('#hlAces').value, rounds: +$('#hlRounds').value, seconds: +$('#hlSecs').value });
+  }
   if (!$('#hlText').value.trim()) await $('#loadHl').onclick();
   const items = $('#hlText').value.split('\n').map((l) => {
     const m = l.match(/^(.*)\|\s*(-?[\d.,]+)\s*$/);
@@ -325,7 +334,9 @@ function renderQuiz(st, g) {
   if (g.phase === 'final') { st.innerHTML = leaderboardHtml('🏆 Final scores', 10); return; }
   const q = g.question;
   const opts = q.options.map((o, i) => {
-    const cls = g.phase === 'reveal' ? (i === g.answer ? 'right' : 'dim') : '';
+    const outcome = g.hl?.outcome;
+    const right = outcome === 'any' || (!outcome && i === g.answer);
+    const cls = g.phase === 'reveal' ? (right ? 'right' : 'dim') : '';
     const count = g.counts ? `<span class="count">${g.counts[i]}</span>` : '';
     return `<div class="opt c${isHl ? 3 - i * 3 : i} ${cls}"><span class="shape">${isHl ? ['▲', '▼'][i] : SHAPES[i]}</span>${esc(o)}${count}</div>`;
   }).join('');
@@ -347,7 +358,21 @@ function renderQuiz(st, g) {
 }
 
 const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
+// Playing card face (or back when c is null).
+function cardHtml(c, size = '') {
+  if (!c) return `<div class="pcard back ${size}"><div class="pback"></div></div>`;
+  const red = c.s === '♥' || c.s === '♦';
+  return `<div class="pcard ${red ? 'red' : ''} ${size}"><span class="pc tl">${c.r}<br>${c.s}</span><span class="pcs">${c.s}</span><span class="pc br">${c.r}<br>${c.s}</span></div>`;
+}
+const ACE_NOTE = { both: 'Aces count high or low, whichever helps you', high: 'Aces are high', low: 'Aces are low' };
+
 function hlCards(hl) {
+  if (hl.cards) {
+    const note = hl.outcome === 'any' ? '<div class="hlnote good">An Ace! Every guess scores.</div>'
+      : hl.outcome === 'none' ? '<div class="hlnote bad">A pair! Nobody scores this round.</div>'
+      : `<div class="hlnote">${ACE_NOTE[hl.aces]}</div>`;
+    return `<div class="hl">${cardHtml(hl.a.card)}<div class="hlvs">vs</div>${cardHtml(hl.b?.card || null, hl.b ? 'flip' : '')}</div>${note}`;
+  }
   const unit = hl.unit ? `<div class="hlunit">${esc(hl.unit)}</div>` : '';
   const bVal = hl.b.value == null ? '<div class="hlval hidden-val">?</div>' : `<div class="hlval pop">${fmtNum(hl.b.value)}</div>`;
   return `<div class="hl">
