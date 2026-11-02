@@ -41,6 +41,8 @@ app.get('/api/join-url/:code', async (req, res) => {
   res.json({ url, svg });
 });
 
+app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
+
 app.get('/api/qr', async (req, res) => {
   const data = String(req.query.data || '').slice(0, 500);
   if (!/^https?:\/\//.test(data)) return res.status(400).end();
