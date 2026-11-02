@@ -3,31 +3,93 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Crowd Games</title>
+  <title>Crowd Games · Party games for weddings, parties and pubs</title>
+  <meta name="description" content="Wedding and party games your guests play on their phones. Scan a QR code: no app needed." />
   <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" />
   <meta name="theme-color" content="#0b0b14" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" />
   <link rel="stylesheet" href="/style.css" />
 </head>
-<body class="glow">
-  <main class="landing">
-    <div>
-      <h1 class="brand">Crowd<span>Games</span></h1>
-      <p class="muted">Games for weddings, parties and pub nights. Quizzes, bingo, music bingo and crowd votes. Your guests scan a QR code and play on their phones.</p>
-      <div class="cards">
-        <div class="card">
-          <h3>I'm the DJ</h3>
-          <p class="muted">Open this on the big screen.</p>
-          <a href="/host"><button class="primary" style="width:100%">Host a game</button></a>
+<body class="glow home">
+  <header class="hnav">
+    <span class="brand">Crowd<span>Games</span></span>
+    <a href="/host"><button class="primary">Host a game</button></a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="kicker">For DJs at weddings, parties and pub nights</div>
+        <h1>Get the whole room <em>playing.</em></h1>
+        <p class="muted lead">Put a QR code on the big screen. Guests scan it, type a name and play on their own phones: no app and no printing. You run everything from the decks.</p>
+        <div class="hero-ctas">
+          <a href="/host"><button class="primary big-btn">Host a game</button></a>
+          <a href="#join"><button class="big-btn">Join a game</button></a>
         </div>
-        <form class="card" action="/play">
-          <h3>I'm playing</h3>
-          <input name="room" placeholder="Room code" maxlength="4" autocapitalize="characters" autocomplete="off" required />
-          <button class="secondary">Join</button>
-        </form>
       </div>
-    </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="mock-screen">
+          <div class="ms-title">Who's the better cook?</div>
+          <div class="ms-cards"><div><small>Sarah says</small><b>Tom</b></div><div><small>Tom says</small><b>Tom</b></div></div>
+          <div class="ms-agree">They agree! 💕</div>
+          <div class="ms-bar"><span style="width:64%"></span><i>Tom · 64%</i></div>
+        </div>
+        <div class="mock-phone">
+          <div class="mp-q">What will the couple say?</div>
+          <div class="mp-btn a">Sarah</div>
+          <div class="mp-btn b picked">Tom</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="join-card" id="join">
+      <form action="/play" class="join-form">
+        <div>
+          <h2>Got a room code?</h2>
+          <p class="muted">It's on the big screen, or just scan the QR code.</p>
+        </div>
+        <div class="join-row">
+          <input name="room" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocomplete="off" required aria-label="Room code" />
+          <button class="secondary">Join</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="section">
+      <h2 class="center">Six games, ready to go</h2>
+      <div class="games">
+        <div class="game wed"><div class="gi">💍</div><h3>Mr &amp; Mrs</h3><p class="muted">The couple answer in secret, then the guests guess what they said. Reveal the couple, then the crowd.</p></div>
+        <div class="game"><div class="gi">🧠</div><h3>Quiz</h3><p class="muted">Timed questions with points for speed and a live leaderboard. Use your own questions or the ready-made packs.</p></div>
+        <div class="game"><div class="gi">🎵</div><h3>Music bingo</h3><p class="muted">Every card is different and full of song titles. Play the tunes and guests tap what they hear.</p></div>
+        <div class="game"><div class="gi">🔢</div><h3>Bingo</h3><p class="muted">Classic 75-number bingo. The app checks every claim, so false calls get caught.</p></div>
+        <div class="game"><div class="gi">🃏</div><h3>Higher or lower</h3><p class="muted">A real shuffled deck. Higher or lower? Aces high, low or either.</p></div>
+        <div class="game"><div class="gi">🗳️</div><h3>Crowd vote</h3><p class="muted">"What should I play next?" or "Who's most likely to…?" with live results on screen.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="center">How it works</h2>
+      <div class="steps">
+        <div><span class="num">1</span><h3>Open the host screen</h3><p class="muted">Put it on the projector or TV. Set the event: a wedding with the couple's names, or a pub or party night.</p></div>
+        <div><span class="num">2</span><h3>Guests scan the QR code</h3><p class="muted">Their phone becomes the controller. Nothing to install, and up to hundreds of players.</p></div>
+        <div><span class="num">3</span><h3>Run it from the decks</h3><p class="muted">Press space to move on, or use the phone remote so you never leave the booth.</p></div>
+      </div>
+    </section>
+
+    <section class="section modes">
+      <div class="mode wedding-mode">
+        <h3>💐 Weddings</h3>
+        <p>An elegant gold and blush theme with the couple's names on every screen. Includes Mr &amp; Mrs, "How well do you know the couple?", wedding trivia and a floor-filler music bingo list.</p>
+      </div>
+      <div class="mode pub-mode">
+        <h3>🍻 Pubs &amp; parties</h3>
+        <p>A neon club look with your venue or night on screen, for quiz nights, bingo and music rounds that keep the bar busy.</p>
+      </div>
+    </section>
   </main>
+
+  <footer class="hfoot muted">Crowd Games · Made for DJs</footer>
 </body>
 </html>
