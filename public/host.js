@@ -136,6 +136,37 @@ function applyTheme(ev) {
   document.body.classList.toggle('is-wedding', ev.type === 'wedding');
 }
 
+// ---------- Mr & Mrs ----------
+$('#loadCouple').onclick = async () => { $('#coupleText').value = (await getPack()).mrAndMrs.join('\n'); };
+$('#startCouple').onclick = async () => {
+  if (!$('#coupleText').value.trim()) await $('#loadCouple').onclick();
+  if (!state.event.a || !state.event.b) return ($('#err').textContent = "Add the couple's names in the Event tab first.");
+  send('host:startCouple', { questions: $('#coupleText').value.split('\n').map((l) => l.trim()).filter(Boolean) });
+};
+function coupleLinks() {
+  const base = joinInfo.url.split('/play')[0];
+  const key = state.game?.coupleKey;
+  return ['a', 'b'].map((who) => `${base}/play?room=${state.code}&couple=${who}&key=${key}`);
+}
+$('#couplePhones').onclick = () => {
+  if (state.game?.type !== 'couple') return ($('#err').textContent = 'Start Mr & Mrs first, then hand the couple their codes.');
+  showCouplePhones();
+};
+function showCouplePhones() {
+  const { A, B } = names();
+  const [la, lb] = coupleLinks();
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.innerHTML = `<div style="max-width:620px"><h3>The couple's phones</h3>
+    <div class="muted">Each partner scans their own code to answer in secret. Don't show these on the big screen.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><b>${esc(A)}</b><div class="qr"><img src="/api/qr?data=${encodeURIComponent(la)}" style="width:100%" alt=""></div></div>
+      <div><b>${esc(B)}</b><div class="qr"><img src="/api/qr?data=${encodeURIComponent(lb)}" style="width:100%" alt=""></div></div>
+    </div><button>Close</button></div>`;
+  m.onclick = (e) => { if (e.target === m || e.target.tagName === 'BUTTON') m.remove(); };
+  document.body.appendChild(m);
+}
+
 $('#loadCoupleQuiz').onclick = async () => {
   const p = await getPack();
   $('#quizText').value = p.coupleQuiz.map((q) => [fill(q.q), ...q.options.map(fill)].join('\n')).join('\n\n');
@@ -234,6 +265,7 @@ function primaryAction() {
   if (!g) return null;
   if (g.type === 'quiz' && g.phase !== 'final') return () => send('host:next');
   if (g.type === 'bingo' && g.mode === 'numbers') return () => send('host:call');
+  if (g.type === 'couple' && g.phase !== 'final') return () => send('host:coupleNext');
   if (g.type === 'poll') return () => (g.open || g.index + 1 >= g.of ? send('host:pollOpen', { open: !g.open }) : send('host:pollNext'));
   return null;
 }
@@ -245,12 +277,18 @@ function renderControls() {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   document.querySelectorAll('[data-pane]').forEach((p) => {
     const name = p.dataset.pane;
-    const show = g ? name === 'liveMusic' && g.type === 'bingo' && g.mode === 'music' : name === tab;
+    const show = g
+      ? (name === 'liveMusic' && g.type === 'bingo' && g.mode === 'music') || (name === 'liveCouple' && g.type === 'couple' && g.phase === 'answering')
+      : name === tab;
     p.classList.toggle('hidden', !show);
   });
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
-  if (g.type === 'poll') {
+  if (g.type === 'couple') {
+    const label = { intro: 'First question', answering: "Reveal the couple's answers", couple: "Reveal the crowd's votes", crowd: g.index + 1 >= g.total ? 'Final scores' : 'Next question' }[g.phase];
+    if (label) html += `<button class="primary" data-act="coupleNext">${label} <span class="muted">(space)</span></button>`;
+    html += `<button data-act="couplePhones">📱 Couple's phones</button><span class="muted">${g.index >= 0 ? `Question ${g.index + 1} of ${g.total} · ` : ''}${g.votes} votes</span>`;
+  } else if (g.type === 'poll') {
     html += `<button class="primary" data-act="poll">${g.open ? 'Close voting' : 'Reopen voting'} <span class="muted">(space)</span></button>`;
     if (g.of > 1) html += `<button class="secondary" data-act="pollNext" ${g.index + 1 >= g.of ? 'disabled' : ''}>Next question (${g.index + 1}/${g.of})</button>`;
     html += `<span class="muted">${g.total} votes</span>`;
@@ -267,6 +305,8 @@ function renderControls() {
   html += `<button data-act="end">End game</button>`;
   live.innerHTML = html;
   live.querySelector('[data-act=next]')?.addEventListener('click', () => send('host:next'));
+  live.querySelector('[data-act=coupleNext]')?.addEventListener('click', () => send('host:coupleNext'));
+  live.querySelector('[data-act=couplePhones]')?.addEventListener('click', showCouplePhones);
   live.querySelector('[data-act=pollNext]')?.addEventListener('click', () => send('host:pollNext'));
   live.querySelector('[data-act=poll]')?.addEventListener('click', () => send('host:pollOpen', { open: !g.open }));
   live.querySelector('[data-act=call]')?.addEventListener('click', () => send('host:call'));
@@ -274,6 +314,18 @@ function renderControls() {
   live.querySelector('[data-act=hide]')?.addEventListener('change', (e) => send('host:hideTitles', { on: e.target.checked }));
   live.querySelector('[data-act=end]').addEventListener('click', () => confirm('End this game and go back to the lobby?') && send('host:end'));
   if (g.type === 'bingo' && g.mode === 'music') renderSongPick();
+  if (g.type === 'couple') renderCoupleEntry(g);
+}
+
+// DJ entry of the couple's answers. Picks aren't shown here (the big screen may be visible), only ✓.
+function renderCoupleEntry(g) {
+  const [A, B] = g.options;
+  const row = (who, name) => `<span class="muted">${esc(name)} says ${g.answered[who] ? '✓' : '…'}</span>
+    <button data-who="${who}" data-c="0">${esc(A)}</button><button data-who="${who}" data-c="1">${esc(B)}</button>`;
+  const el = $('#coupleEntry');
+  el.innerHTML = `${row('a', A)}<span style="width:24px"></span>${row('b', B)}
+    <span class="muted">${g.coupleOnline.a || g.coupleOnline.b ? '📱 Couple phones connected' : ''}</span>`;
+  el.querySelectorAll('button').forEach((b) => (b.onclick = () => send('host:coupleAnswer', { who: b.dataset.who, choice: +b.dataset.c })));
 }
 
 function renderSongPick() {
@@ -320,6 +372,7 @@ function renderStage() {
     </div>`;
     return;
   }
+  if (g.type === 'couple') return renderCouple(st, g);
   if (g.type === 'poll') return renderPoll(st, g);
   if (g.type === 'quiz') return renderQuiz(st, g);
   return renderBingo(st, g);
@@ -380,6 +433,46 @@ function hlCards(hl) {
     <div class="hlvs">vs</div>
     <div class="hlcard b"><div class="hllabel">${esc(hl.b.label)}</div>${bVal}${unit}</div>
   </div>`;
+}
+
+function renderCouple(st, g) {
+  const [A, B] = g.options;
+  if (g.phase === 'intro') {
+    st.innerHTML = `<div class="center"><div class="qhead">How well do you know them?</div><div class="qtext">Mr &amp; Mrs</div>
+      <div class="lobbyname" style="margin-top:2cqh">${esc(A)} &amp; ${esc(B)}</div>
+      <div class="qhead">The couple answer in secret. You vote for who you think they'll pick.<br>Match the couple to score!</div></div>`;
+    return;
+  }
+  if (g.phase === 'final') {
+    st.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:2cqh">
+      <div class="qhead">${esc(A)} &amp; ${esc(B)} agreed on ${g.agreed} of ${g.total} questions</div>
+      ${leaderboardHtml('💍 Who knows the couple best?', 8)}</div>`;
+    return;
+  }
+  const rev = g.answers;
+  const agree = rev && rev.a != null && rev.a === rev.b;
+  const card = (who, name) => {
+    const ans = rev ? (rev[who] == null ? '<div class="cpick muted">No answer</div>' : `<div class="cpick pop">${esc(g.options[rev[who]])}</div>`)
+      : `<div class="cpick ${g.answered[who] ? 'ok' : 'muted'}">${g.answered[who] ? '✓ Answered' : 'Thinking…'}</div>`;
+    return `<div class="ccard"><div class="cname">${esc(name)} says</div>${ans}</div>`;
+  };
+  let banner = '';
+  if (rev) banner = agree ? `<div class="hlnote good">They agree! 💕</div>` : `<div class="hlnote bad">They disagree! 😱</div>`;
+  let crowd = '';
+  if (g.counts) {
+    const total = g.counts[0] + g.counts[1];
+    const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+    crowd = `<div class="poll" style="margin-top:2cqh"><div class="qhead">The guests said…</div><div class="pollrows">
+      ${[A, B].map((n, i) => `<div class="pollrow ${agree && rev.a === i ? 'win' : ''}"><div class="pollbar c${i}" style="width:${pct(g.counts[i])}%"></div>
+        <span class="polllabel">${esc(n)}</span><span class="pollpct">${pct(g.counts[i])}% · ${g.counts[i]}</span></div>`).join('')}
+    </div>${agree ? `<div class="winners">${g.counts[rev.a]} guest${g.counts[rev.a] === 1 ? '' : 's'} got it right!</div>` : ''}</div>`;
+  } else {
+    crowd = `<div class="qhead" style="margin-top:2cqh">${g.phase === 'answering' ? 'Guests: vote on your phone!' : 'Voting closed'} · ${g.votes} votes</div>`;
+  }
+  st.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center">
+    <div class="qhead">Question ${g.index + 1} of ${g.total}</div>
+    <div class="qtext">${esc(g.question)}</div>
+    <div class="ccards">${card('a', A)}${card('b', B)}</div>${banner}${crowd}</div>`;
 }
 
 function renderPoll(st, g) {

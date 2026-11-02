@@ -75,6 +75,8 @@ function createRoom() {
   const room = {
     code: newCode(),
     hostKey: crypto.randomBytes(16).toString('hex'),
+    coupleKey: crypto.randomBytes(12).toString('hex'), // for the couple's own phones in Mr & Mrs
+    coupleSockets: { a: new Set(), b: new Set() },
     hostSockets: new Set(),
     players: new Map(), // playerId -> { id, name, score, sockets:Set, card?, answer? }
     game: null,
@@ -263,6 +265,75 @@ function pollCounts(g) {
   return c;
 }
 
+// ---------- Mr & Mrs (couple game) ----------
+// Each question has the couple's two names as options. The couple answer secretly
+// (on their own phones, or the DJ taps their answers in) while guests vote on who
+// they think the couple will pick. The DJ reveals the couple's answers, then the crowd's.
+// Guests score 100 when they match the couple, but only if the couple agree.
+const COUPLE_POINTS = 100;
+
+function startCouple(room, { questions }) {
+  const qs = (Array.isArray(questions) ? questions : []).map((q) => clean(q, 200)).filter(Boolean).slice(0, 50);
+  if (!qs.length) return 'Add at least one question.';
+  for (const p of room.players.values()) p.score = 0;
+  room.game = { type: 'couple', questions: qs, index: -1, phase: 'intro', votes: new Map(), answers: { a: null, b: null }, agreed: 0, lastPoints: {} };
+  return null;
+}
+
+function coupleNames(room) {
+  return [room.event.a || 'Partner 1', room.event.b || 'Partner 2'];
+}
+
+// intro -> answering -> couple (couple revealed, voting locked) -> crowd (crowd revealed) -> next question … -> final
+function coupleAdvance(room) {
+  const g = room.game;
+  if (g.phase === 'answering') {
+    g.phase = 'couple';
+    g.lastPoints = {};
+    const { a, b } = g.answers;
+    if (a != null && a === b) {
+      g.agreed++;
+      for (const [pid, v] of g.votes) {
+        const p = room.players.get(pid);
+        if (p && v === a) { p.score += COUPLE_POINTS; g.lastPoints[pid] = COUPLE_POINTS; }
+      }
+    }
+    return;
+  }
+  if (g.phase === 'couple') { g.phase = 'crowd'; return; }
+  if (g.index + 1 >= g.questions.length) { g.phase = 'final'; return; }
+  g.index++;
+  g.phase = 'answering';
+  g.votes = new Map();
+  g.answers = { a: null, b: null };
+}
+
+// Returns an error string, or null on success.
+function setCoupleAnswer(room, who, choice) {
+  const g = room.game;
+  if (g?.type !== 'couple') return 'No Mr & Mrs game running';
+  if (g.phase !== 'answering') return 'Answers are locked for this question';
+  if (!['a', 'b'].includes(who)) return 'Bad partner';
+  const c = choice == null ? null : Number(choice);
+  if (c != null && c !== 0 && c !== 1) return 'Bad answer';
+  g.answers[who] = c;
+  return null;
+}
+
+function coupleCounts(g) {
+  const c = [0, 0];
+  for (const v of g.votes.values()) c[v]++;
+  return c;
+}
+
+function coupleView(room, who) {
+  const g = room.game;
+  const names = coupleNames(room);
+  const base = { role: 'couple', code: room.code, event: room.event, who, myName: who === 'a' ? names[0] : names[1] };
+  if (g?.type !== 'couple') return { ...base, game: null };
+  return { ...base, game: { type: 'couple', phase: g.phase, index: g.index, total: g.questions.length, question: g.questions[g.index] || null, options: names, myAnswer: g.answers[who] } };
+}
+
 // ---------- bingo (numbers + music) ----------
 const BINGO_COLS = ['B', 'I', 'N', 'G', 'O'];
 
@@ -333,6 +404,20 @@ function hostView(room) {
   const g = room.game;
   const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room) };
   if (!g) return { ...base, game: null };
+  if (g.type === 'couple') {
+    const revealed = g.phase === 'couple' || g.phase === 'crowd';
+    return {
+      ...base,
+      game: {
+        type: 'couple', phase: g.phase, index: g.index, total: g.questions.length, question: g.questions[g.index] || null,
+        options: coupleNames(room), coupleKey: room.coupleKey, agreed: g.agreed,
+        answered: { a: g.answers.a != null, b: g.answers.b != null },
+        answers: revealed ? g.answers : null,
+        counts: g.phase === 'crowd' ? coupleCounts(g) : null, votes: g.votes.size,
+        coupleOnline: { a: room.coupleSockets.a.size > 0, b: room.coupleSockets.b.size > 0 },
+      },
+    };
+  }
   if (g.type === 'poll') {
     return { ...base, game: { type: 'poll', question: g.question, options: g.options, counts: pollCounts(g), total: g.votes.size, open: g.open, index: g.index, of: g.series.length } };
   }
@@ -373,6 +458,19 @@ function playerView(room, p) {
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
   const base = { role: 'player', code: room.code, event: room.event, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
   if (!g) return { ...base, game: null };
+  if (g.type === 'couple') {
+    const revealed = g.phase === 'couple' || g.phase === 'crowd';
+    return {
+      ...base,
+      game: {
+        type: 'couple', phase: g.phase, index: g.index, total: g.questions.length, question: g.questions[g.index] || null,
+        options: coupleNames(room), myVote: g.votes.get(p.id) ?? null,
+        answers: revealed ? g.answers : null, counts: g.phase === 'crowd' ? coupleCounts(g) : null,
+        lastPoints: revealed ? g.lastPoints[p.id] || 0 : null,
+        top: g.phase === 'final' ? leaderboard(room).slice(0, 3) : null,
+      },
+    };
+  }
   if (g.type === 'poll') {
     const mine = g.votes.get(p.id);
     return { ...base, game: { type: 'poll', question: g.question, options: g.options, open: g.open, myVote: mine ?? null, counts: g.open ? null : pollCounts(g) } };
@@ -417,6 +515,11 @@ function broadcast(room) {
     const pv = playerView(room, p);
     for (const sid of p.sockets) io.to(sid).emit('state', pv);
   }
+  for (const who of ['a', 'b']) {
+    if (!room.coupleSockets[who].size) continue;
+    const cv = coupleView(room, who);
+    for (const sid of room.coupleSockets[who]) io.to(sid).emit('state', cv);
+  }
 }
 
 // ---------- sockets ----------
@@ -424,6 +527,7 @@ io.on('connection', (socket) => {
   let room = null;
   let player = null;
   let isHost = false;
+  let coupleWho = null;
 
   const ack = (cb, v) => typeof cb === 'function' && cb(v);
   const host = (fn) => (data, cb) => {
@@ -537,8 +641,36 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
+  socket.on('host:startCouple', host((d) => startCouple(room, d)));
+  socket.on('host:coupleNext', host(() => {
+    if (room.game?.type !== 'couple') return 'No Mr & Mrs game running';
+    coupleAdvance(room);
+  }));
+  // The DJ can enter the couple's answers by hand (e.g. when they hold up shoes).
+  socket.on('host:coupleAnswer', host(({ who, choice }) => setCoupleAnswer(room, who, choice)));
+
+  socket.on('couple:join', ({ code, who, key } = {}, cb) => {
+    const r = rooms.get(String(code || '').toUpperCase());
+    if (!r || r.coupleKey !== key || !['a', 'b'].includes(who)) return ack(cb, { error: 'This couple link is not valid for this room.' });
+    room = r;
+    coupleWho = who;
+    r.coupleSockets[who].add(socket.id);
+    ack(cb, { ok: true });
+    broadcast(r);
+  });
+  socket.on('couple:answer', ({ choice } = {}) => {
+    if (!room || !coupleWho) return;
+    if (!setCoupleAnswer(room, coupleWho, choice)) broadcast(room);
+  });
+
   socket.on('player:vote', ({ choice } = {}) => {
     const g = room?.game;
+    if (player && g?.type === 'couple') {
+      const c = Number(choice);
+      if (g.phase !== 'answering' || !(c === 0 || c === 1)) return;
+      g.votes.set(player.id, c);
+      return broadcast(room);
+    }
     if (!player || g?.type !== 'poll' || !g.open) return;
     const c = Number(choice);
     if (!(c >= 0 && c < g.options.length)) return;
@@ -566,6 +698,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (!room) return;
     room.hostSockets.delete(socket.id);
+    if (coupleWho) room.coupleSockets[coupleWho].delete(socket.id);
     if (player) player.sockets.delete(socket.id);
     broadcast(room);
   });

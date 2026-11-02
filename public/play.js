@@ -52,7 +52,17 @@ function join(name) {
   });
 }
 
-socket.on('connect', () => (session && code ? join(session.name) : showJoin()));
+// The couple's private phones in Mr & Mrs join with ?couple=a|b&key=…
+const coupleWho = params.get('couple');
+const coupleKey = params.get('key');
+socket.on('connect', () => {
+  if (coupleWho) {
+    return socket.emit('couple:join', { code, who: coupleWho, key: coupleKey }, (r) => {
+      if (r.error) $('#main').innerHTML = `<div class="center big">${esc(r.error)}</div>`;
+    });
+  }
+  session && code ? join(session.name) : showJoin();
+});
 socket.on('kicked', () => {
   store.set(sessKey, null); session = null; state = null;
   $('#main').innerHTML = '<div class="center big">You were removed from the game.</div>';
@@ -72,7 +82,8 @@ function render() {
   document.body.dataset.theme = ev.type === 'wedding' ? 'elegant' : 'club';
   const title = ev.title || (ev.type === 'wedding' && ev.a && ev.b ? `${ev.a} & ${ev.b}` : '');
   $('.ptop .brand').innerHTML = title ? `<span class="evtitle">${esc(title)}</span>` : 'Crowd<span>Games</span>';
-  $('#who').innerHTML = `<b>${esc(me.name)}</b> · ${state.game?.type === 'quiz' ? `${me.score} pts` : `room ${state.code}`}`;
+  if (state.role === 'couple') return renderCouplePhone(state);
+  $('#who').innerHTML = `<b>${esc(me.name)}</b> · ${['quiz', 'couple'].includes(state.game?.type) ? `${me.score} pts` : `room ${state.code}`}`;
   const g = state.game;
   if (!g) {
     $('#main').innerHTML = `<div class="center"><div class="huge">${ev.type === 'wedding' ? '💍' : '🎧'}</div><div class="big">You're in!</div>
@@ -80,9 +91,68 @@ function render() {
       <p class="muted">${state.playerCount} players in the room</p></div>`;
     return;
   }
+  if (g.type === 'couple') return renderCoupleGuest(g, me);
   if (g.type === 'poll') return renderPoll(g);
   if (g.type === 'quiz') return renderQuiz(g, me);
   return renderBingo(g);
+}
+
+// One of the couple answering in secret.
+function renderCouplePhone(st) {
+  const g = st.game;
+  const m = $('#main');
+  $('#who').innerHTML = `<b>${esc(st.myName)}</b> · 💍 couple phone`;
+  if (!g || g.phase === 'intro' || g.phase === 'final') {
+    m.innerHTML = `<div class="center"><div class="huge">💍</div><div class="big">Hi ${esc(st.myName)}!</div>
+      <p class="muted">Keep this screen to yourself. Each question will appear here, so answer honestly!</p></div>`;
+    return;
+  }
+  if (g.phase !== 'answering') {
+    m.innerHTML = `<div class="center"><div class="big">Answers revealed!</div><p class="muted">Look at the big screen. The next question will appear here.</p></div>`;
+    return;
+  }
+  m.innerHTML = `<div class="center muted">Question ${g.index + 1} of ${g.total} · answer in secret</div>
+    <div class="center big">${esc(g.question)}</div>
+    <div class="pans" style="grid-template-columns:1fr">${g.options.map((o, i) => `<button class="c${i} ${g.myAnswer === i ? 'picked' : g.myAnswer != null ? 'faded' : ''}" data-i="${i}"><span class="big">${esc(o)}</span></button>`).join('')}</div>
+    ${g.myAnswer != null ? '<div class="center muted">Locked in. You can change it until the DJ reveals.</div>' : ''}`;
+  m.querySelectorAll('button[data-i]').forEach((b) => (b.onclick = () => { navigator.vibrate?.(20); socket.emit('couple:answer', { choice: +b.dataset.i }); }));
+}
+
+// A guest in Mr & Mrs: guess what the couple said.
+function renderCoupleGuest(g, me) {
+  const m = $('#main');
+  const [A, B] = g.options;
+  if (g.phase === 'intro') {
+    m.innerHTML = `<div class="center"><div class="huge">💍</div><div class="big">Mr &amp; Mrs</div><p class="muted">How well do you know ${esc(A)} &amp; ${esc(B)}? Guess what they'll answer. Match them to score!</p></div>`;
+    return;
+  }
+  if (g.phase === 'final') {
+    const medal = ['🥇', '🥈', '🥉'][me.rank - 1] || '💕';
+    m.innerHTML = `<div class="center"><div class="huge">${medal}</div><div class="big">You finished #${me.rank}</div><p class="muted">${me.score} points</p>
+      ${(g.top || []).map((p, i) => `<div>${i + 1}. ${esc(p.name)} (${p.score})</div>`).join('')}</div>`;
+    return;
+  }
+  if (g.phase === 'answering') {
+    m.innerHTML = `<div class="center muted">Question ${g.index + 1} of ${g.total} · what will the couple say?</div>
+      <div class="center big">${esc(g.question)}</div>
+      <div class="pans" style="grid-template-columns:1fr">${g.options.map((o, i) => `<button class="c${i} ${g.myVote === i ? 'picked' : g.myVote != null ? 'faded' : ''}" data-i="${i}"><span class="big">${esc(o)}</span></button>`).join('')}</div>
+      ${g.myVote != null ? '<div class="center muted">Vote in! You can change it until the reveal.</div>' : ''}`;
+    m.querySelectorAll('button[data-i]').forEach((b) => (b.onclick = () => { navigator.vibrate?.(20); socket.emit('player:vote', { choice: +b.dataset.i }); }));
+    return;
+  }
+  const { a, b } = g.answers;
+  const said = (n, v) => `${esc(n)} said <b>${v == null ? 'nothing' : esc(g.options[v])}</b>`;
+  const agree = a != null && a === b;
+  let cls = 'meh', msg = 'You didn’t vote';
+  if (g.myVote != null) [cls, msg] = !agree ? ['meh', 'They disagree! 😱'] : g.lastPoints ? ['good', `You got it! +${g.lastPoints}`] : ['bad', 'Not this time'];
+  let crowd = '';
+  if (g.counts) {
+    const t = g.counts[0] + g.counts[1] || 1;
+    crowd = `<div class="center muted">The guests said: ${esc(A)} ${Math.round((g.counts[0] / t) * 100)}% · ${esc(B)} ${Math.round((g.counts[1] / t) * 100)}%</div>`;
+  }
+  m.innerHTML = `<div class="center big">${esc(g.question)}</div>
+    <div class="result ${cls}"><div class="big">${msg}</div><p>${said(A, a)}<br>${said(B, b)}</p></div>${crowd}
+    <div class="center muted">You're #${me.rank} with ${me.score} points</div>`;
 }
 
 function renderPoll(g) {

@@ -130,6 +130,47 @@ server.listen(0, async () => {
   assert.equal(latest.get('Ana').game.myVote, null, 'votes reset for next question');
   assert.ok((await call(host, 'host:pollNext')).error, 'end of series');
 
+  // Mr & Mrs
+  assert.ok((await call(host, 'host:startCouple', { questions: ['Who cooks?', 'Who snores?'] })).ok);
+  const rm = rooms.get(code);
+  const coupleA = await mk();
+  let coupleState = null;
+  coupleA.on('state', (st) => (coupleState = st));
+  assert.ok((await call(coupleA, 'couple:join', { code, who: 'a', key: 'wrong' })).error, 'bad couple key rejected');
+  assert.ok((await call(coupleA, 'couple:join', { code, who: 'a', key: rm.coupleKey })).ok);
+  await call(host, 'host:coupleNext'); // -> question 1
+  coupleA.emit('couple:answer', { choice: 1 });
+  await call(host, 'host:coupleAnswer', { who: 'b', choice: 1 }); // DJ enters partner B's shoe
+  players[0].emit('player:vote', { choice: 1 }); // Ana matches
+  players[1].emit('player:vote', { choice: 0 }); // Ben doesn't
+  await wait(150);
+  assert.equal(coupleState.game.myAnswer, 1);
+  assert.equal(latest.get('Ana').game.answers, null, 'couple answers hidden before reveal');
+  const anaBefore = [...rm.players.values()].find((p) => p.name === 'Ana').score;
+  await call(host, 'host:coupleNext'); // reveal couple
+  players[1].emit('player:vote', { choice: 1 }); // too late, ignored
+  await wait(150);
+  assert.deepEqual(latest.get('Ana').game.answers, { a: 1, b: 1 });
+  assert.equal(latest.get('Ana').game.lastPoints, 100);
+  assert.equal(latest.get('Ben').game.lastPoints, 0);
+  assert.equal(latest.get('Ana').game.counts, null, 'crowd hidden until second reveal');
+  assert.equal([...rm.players.values()].find((p) => p.name === 'Ana').score, anaBefore + 100);
+  await call(host, 'host:coupleNext'); // reveal crowd
+  await wait(100);
+  assert.deepEqual(latest.get('Ana').game.counts, [1, 1]);
+  await call(host, 'host:coupleNext'); // question 2: couple disagree
+  await call(host, 'host:coupleAnswer', { who: 'a', choice: 0 });
+  await call(host, 'host:coupleAnswer', { who: 'b', choice: 1 });
+  players[0].emit('player:vote', { choice: 0 });
+  await wait(100);
+  await call(host, 'host:coupleNext');
+  await wait(100);
+  assert.equal(latest.get('Ana').game.lastPoints, 0, 'no points when the couple disagree');
+  await call(host, 'host:coupleNext'); await call(host, 'host:coupleNext');
+  assert.equal(rm.game.phase, 'final');
+  assert.equal(rm.game.agreed, 1);
+  coupleA.close();
+
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());
   server.close(); process.exit(0);

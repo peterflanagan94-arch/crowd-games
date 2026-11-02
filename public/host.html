@@ -18,6 +18,7 @@
       <strong>DJ controls</strong>
       <span class="tabs" id="tabs">
         <button data-tab="event" class="on">Event</button>
+        <button data-tab="couple" class="wedding-only">💍 Mr &amp; Mrs</button>
         <button data-tab="quiz">Quiz</button>
         <button data-tab="bingo">Bingo</button>
         <button data-tab="music">Music bingo</button>
@@ -44,6 +45,17 @@
         <label>Partner 2 <input id="evB" maxlength="30" placeholder="e.g. Tom" /></label>
       </div>
       <button class="primary" id="saveEvent">Save event</button>
+    </div>
+
+    <div class="pane hidden" data-pane="couple">
+      <div class="muted"><b>Mr &amp; Mrs:</b> the couple answer each question secretly, and the guests vote on what they think the couple said. Reveal the couple's answers first, then the crowd's. Guests score when they match the couple, but only if the couple agree with each other.</div>
+      <textarea id="coupleText" placeholder="One question per line, answered with one of the couple's names"></textarea>
+      <div class="bar">
+        <button id="loadCouple">Load 14 classic questions</button>
+        <button id="couplePhones">📱 Couple's phones</button>
+        <span class="muted">Or tap their answers in yourself during the game (handy if they're holding up shoes).</span>
+      </div>
+      <button class="primary" id="startCouple">Start Mr &amp; Mrs</button>
     </div>
 
     <div class="pane hidden" data-pane="quiz">
@@ -125,6 +137,9 @@
     </div>
 
     <!-- live panes -->
+    <div class="pane hidden" data-pane="liveCouple">
+      <div class="bar" id="coupleEntry"></div>
+    </div>
     <div class="pane hidden" data-pane="liveMusic">
       <input id="songFilter" placeholder="Search songs…" />
       <div class="songpick" id="songPick"></div>

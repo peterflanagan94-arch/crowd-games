@@ -72,6 +72,23 @@ const WEDDING = {
     'Who spends longest scrolling their phone?',
     'Who’s the bigger romantic?',
   ],
+  // Mr & Mrs: every question is answered with one of the couple's names.
+  mrAndMrs: [
+    'Who said "I love you" first?',
+    'Who made the first move?',
+    'Who’s the better cook?',
+    'Who takes longer to get ready?',
+    'Who’s the messiest?',
+    'Who’s the better driver?',
+    'Who spends more money?',
+    'Who’s the better dancer?',
+    'Who snores louder?',
+    'Who’s first to say sorry after an argument?',
+    'Who’s in charge of the TV remote?',
+    'Who’s the bigger romantic?',
+    'Who controls the heating?',
+    'Who’s going to cry first today?',
+  ],
   coupleHigherLower: [
     { label: 'Years {A} & {B} have been together', value: 0 },
     { label: 'Countries they have visited together', value: 0 },

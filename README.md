@@ -9,6 +9,7 @@ Pick the event in the **Event** tab on the host screen:
 - **Party / club** or **Pub / bar:** the neon club theme, with an optional title such as "Friday Quiz at The Crown".
 
 Wedding packs:
+- **💍 Mr & Mrs:** the couple answer each "Who's more…?" question in secret, either on their own phones using private QR codes or with the DJ tapping in their answers (for example when they hold up shoes). Guests vote on what they think the couple said. Press reveal once to show the couple's answers, then again to show the crowd's votes. Guests score when they match the couple, but only when the couple agree. It comes with 14 classic questions.
 - **How well do you know the couple?:** a quiz template with the couple's names filled in. Edit the answers with the couple before the day.
 - **Wedding trivia:** 10 ready-to-go questions.
 - **Who's most likely to…?:** a quick-fire series of votes where guests choose between the two partners.
