@@ -266,7 +266,9 @@ body.home { min-height: 100%; overflow-x: hidden; }
 .games { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .game { background: var(--panel); border-radius: 18px; padding: 22px; border: 1px solid #ffffff0a; }
 .game.wed { background: linear-gradient(160deg, #2b1d26, var(--panel)); border-color: #d8b46a44; }
-.game .gi { font-size: 30px; } .game h3 { margin: 8px 0 6px; } .game p { margin: 0; line-height: 1.5; }
+.game { overflow: hidden; }
+.game .gshot { display: block; width: calc(100% + 44px); margin: -22px -22px 14px; aspect-ratio: 3 / 2; height: auto; object-fit: cover; object-position: center; background: #0b0b14; border-bottom: 1px solid #ffffff12; }
+.game h3 { margin: 8px 0 6px; } .game p { margin: 0; line-height: 1.5; }
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .steps > div { padding: 8px; }
 .num { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; margin-bottom: 10px; }
