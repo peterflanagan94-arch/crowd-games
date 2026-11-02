@@ -1,6 +1,6 @@
 {
-  "name": "Crowd Games",
-  "short_name": "CrowdGames",
+  "name": "Crowd QR Games",
+  "short_name": "Crowd QR",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0b14",

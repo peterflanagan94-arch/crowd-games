@@ -1,4 +1,4 @@
-// Crowd Games: DJ host screen + phone players, synced over Socket.IO.
+// Crowd QR Games: DJ host screen + phone players, synced over Socket.IO.
 const path = require('path');
 const http = require('http');
 const os = require('os');
@@ -706,7 +706,7 @@ io.on('connection', (socket) => {
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    console.log(`Crowd Games running: http://localhost:${PORT}  (LAN: http://${lanIp()}:${PORT})`);
+    console.log(`Crowd QR Games running: http://localhost:${PORT}  (LAN: http://${lanIp()}:${PORT})`);
   });
 }
 

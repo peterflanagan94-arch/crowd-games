@@ -285,3 +285,5 @@ body.home { min-height: 100%; overflow-x: hidden; }
 a { color: inherit; text-decoration: none; }
 .join-row input { min-width: 0; }
 @media (max-width: 860px) { .join-form > div { width: 100%; } }
+.brand.logo { display: inline-flex; align-items: center; gap: 10px; }
+@media (max-width: 480px) { .hnav a { display: none; } }

@@ -528,7 +528,7 @@ function render() {
   if (state) {
     applyTheme(state.event);
     const t = eventTitle(state.event);
-    $('#brand').innerHTML = t ? `<span class="evtitle">${esc(t)}</span>` : 'Crowd<span>Games</span>';
+    $('#brand').innerHTML = t ? `<span class="evtitle">${esc(t)}</span>` : 'Crowd <span>QR</span> Games';
     if (!eventFormFilled) {
       eventFormFilled = true;
       const fresh = !state.event.title && !state.event.a && state.event.type === 'party';

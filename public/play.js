@@ -81,7 +81,7 @@ function render() {
   const ev = state.event || {};
   document.body.dataset.theme = ev.type === 'wedding' ? 'elegant' : 'club';
   const title = ev.title || (ev.type === 'wedding' && ev.a && ev.b ? `${ev.a} & ${ev.b}` : '');
-  $('.ptop .brand').innerHTML = title ? `<span class="evtitle">${esc(title)}</span>` : 'Crowd<span>Games</span>';
+  $('.ptop .brand').innerHTML = title ? `<span class="evtitle">${esc(title)}</span>` : 'Crowd <span>QR</span> Games';
   if (state.role === 'couple') return renderCouplePhone(state);
   $('#who').innerHTML = `<b>${esc(me.name)}</b> · ${['quiz', 'couple'].includes(state.game?.type) ? `${me.score} pts` : `room ${state.code}`}`;
   const g = state.game;
