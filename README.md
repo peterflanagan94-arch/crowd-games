@@ -1,6 +1,6 @@
 # Crowd QR Games
 
-Party games a DJ runs from the big screen while guests play on their phones. It's built first for **weddings** and works just as well in pubs, bars and at parties. Nobody installs an app: guests scan the QR code and type a nickname.
+Party games a DJ runs from the big screen while guests play on their phones. It works for pub quizzes, parties, club nights and events, and has an optional **wedding mode**. Nobody installs an app: guests scan the QR code and type a nickname.
 
 ## Event modes
 

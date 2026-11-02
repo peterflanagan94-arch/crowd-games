@@ -6,7 +6,7 @@ const SHAPES = ['▲', '◆', '●', '■'];
 
 let state = null;
 let joinInfo = null;
-let tab = 'event';
+let tab = 'quiz';
 let weddingPack = null;
 const getPack = async () => (weddingPack ||= await fetch('/api/wedding').then((r) => r.json()));
 let tick = null;
