@@ -202,6 +202,17 @@ server.listen(0, async () => {
   assert.ok((await call(host, 'host:challengeVote')).ok);
   assert.equal(rooms.get(code).game.type, 'poll');
 
+  // Quiz categories
+  const pack = await (await fetch(`${url}/api/quiz-pack?cats=disney,music&n=8`)).json();
+  assert.equal(pack.length, 8);
+  assert.ok(pack.every((q) => /Disney|Music/.test(q.cat) && q.options[q.answer]), 'only chosen categories, valid answers');
+  const mixed = await (await fetch(`${url}/api/quiz-pack?n=30`)).json();
+  assert.ok(new Set(mixed.map((q) => q.cat)).size >= 8, 'mixed quiz spans categories');
+  assert.ok((await call(host, 'host:startQuiz', { questions: pack, seconds: 10 })).ok);
+  await call(host, 'host:next');
+  await wait(100);
+  assert.ok(latest.get('Ana').game.cat, 'category shown on phones');
+
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());
   server.close(); process.exit(0);

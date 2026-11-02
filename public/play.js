@@ -244,7 +244,7 @@ function renderQuiz(g, me) {
     : isHl
     ? `<div class="center muted">${esc(g.hl.a.label)}: <b style="color:var(--text)">${fmtNum(g.hl.a.value)}</b>${unit}</div>
        <div class="center" style="font-weight:800;font-size:20px">Higher or lower?<br><span style="color:var(--accent2)">${esc(g.hl.b.label)}</span></div>`
-    : `<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`;
+    : `${g.cat ? `<div class="center"><span class="qcat">${esc(g.cat)}</span></div>` : ''}<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`;
   m.innerHTML = `<div class="center muted">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
     ${qHtml}
     <div class="ptimer"><div id="bar"></div></div>

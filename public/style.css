@@ -315,3 +315,10 @@ a { color: inherit; text-decoration: none; }
 .slot.pop { animation: pop .4s ease; }
 .chnames { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 2cqh; max-height: 26cqh; overflow: hidden; }
 .chnames span { background: var(--panel2); padding: 6px 14px; border-radius: 999px; animation: pop .35s ease; font-size: max(14px, 3cqh); }
+
+.catgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.catgrid .cat { text-align: left; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; border: 2px solid transparent; }
+.catgrid .cat small { color: var(--muted); font-weight: 500; font-size: 12px; }
+.catgrid .cat.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel2)); }
+.qcat { display: inline-block; background: var(--panel2); color: var(--accent2); border-radius: 999px; padding: 2px 12px; font-weight: 700; }
+details summary { cursor: pointer; }

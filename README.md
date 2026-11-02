@@ -17,7 +17,7 @@ Wedding packs:
 - **30 classic floor-fillers:** a ready-made music bingo playlist. It's available in every mode.
 
 **Games**
-- **Quiz:** timed multiple choice. You get 500 points for a right answer plus up to 500 for speed, and a leaderboard shows after every question. Paste your own questions or use the starter set.
+- **Quiz:** timed multiple choice. You get 500 points for a right answer plus up to 500 for speed, and a leaderboard shows after each question. There are 134 built-in questions in 10 categories: General Knowledge, Disney, Films, Music, TV, Sport, Food & Drink, Animals, 80s & 90s Throwback and Christmas. Pick one or more, or choose **All categories** for a mixed round. Answer order is shuffled every time, and you can edit questions or write your own.
 - **Bingo:** classic 75-number bingo. Every phone gets its own card. Tap numbers to mark them and hit BINGO!, and the server checks the claim against the calls.
 - **Music bingo:** paste a playlist and each card gets song titles (4x4 for 16 or more songs, 5x5 for 24 or more). Tap songs in the DJ panel as you play them. You can hide titles on the big screen so the crowd has to recognise each song by ear.
 

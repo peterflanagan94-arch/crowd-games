@@ -60,12 +60,17 @@
     </div>
 
     <div class="pane hidden" data-pane="quiz">
-      <div class="muted">Paste your own questions, or use the starter quiz. Format: question on one line, then answers on the next lines. Put * in front of the correct one. Leave a blank line between questions.</div>
-      <textarea id="quizText" placeholder="Which decade did disco peak in?&#10;1960s&#10;*1970s&#10;1990s&#10;2000s"></textarea>
+      <div class="muted"><b>Pick your categories</b>, choose how many questions, then load them. Mix several categories, or tap <b>All categories</b> for a general round. You can edit the questions below before you start.</div>
+      <div class="catgrid" id="catGrid"></div>
       <div class="row2">
+        <label>Questions <select id="quizN"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option></select></label>
         <label>Seconds per question <input id="quizSecs" type="number" min="5" max="120" value="20" /></label>
-        <label>&nbsp;<button id="loadSample" style="width:100%">Load starter quiz</button></label>
       </div>
+      <div class="bar"><button class="secondary" id="loadCats">🎲 Load questions</button><span class="muted" id="catNote"></span></div>
+      <details><summary class="muted">Edit questions, or write your own</summary>
+        <div class="muted" style="margin:8px 0">Format: question on one line, then the answers on the next lines, with * in front of the correct one. Leave a blank line between questions. An optional first line starting with # sets the category, for example "# 🎵 Music".</div>
+        <textarea id="quizText" placeholder="# 🎵 Music&#10;Which decade did disco peak in?&#10;1960s&#10;*1970s&#10;1990s&#10;2000s"></textarea>
+      </details>
       <div class="bar wedding-only">
         <span class="muted">Wedding packs:</span>
         <button id="loadCoupleQuiz">💍 How well do you know the couple? (template)</button>

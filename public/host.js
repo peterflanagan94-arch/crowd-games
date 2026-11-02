@@ -91,22 +91,45 @@ $('#tabs').onclick = (e) => {
 
 function parseQuiz(text) {
   return text.split(/\n\s*\n/).map((block) => {
-    const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+    let lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+    let cat = null;
+    if (lines[0]?.startsWith('#')) { cat = lines[0].replace(/^#\s*/, ''); lines = lines.slice(1); }
     if (lines.length < 3) return null;
     const [q, ...opts] = lines;
     const answer = opts.findIndex((o) => o.startsWith('*'));
-    return { q, options: opts.slice(0, 4).map((o) => o.replace(/^\*\s*/, '')), answer };
+    return { q, options: opts.slice(0, 4).map((o) => o.replace(/^\*\s*/, '')), answer, cat };
   }).filter((q) => q && q.answer >= 0 && q.answer < 4);
 }
 function quizToText(qs) {
-  return qs.map((q) => [q.q, ...q.options.map((o, i) => (i === q.answer ? '*' : '') + o)].join('\n')).join('\n\n');
+  return qs.map((q) => [...(q.cat ? [`# ${q.cat}`] : []), q.q, ...q.options.map((o, i) => (i === q.answer ? '*' : '') + o)].join('\n')).join('\n\n');
 }
 
-$('#loadSample').onclick = async () => {
-  $('#quizText').value = quizToText(await fetch('/api/sample-quiz').then((r) => r.json()));
-};
+// ---------- quiz categories ----------
+const selectedCats = new Set(store.get('cg-cats') || []);
+let allCats = [];
+fetch('/api/quiz-categories').then((r) => r.json()).then((cats) => { allCats = cats; renderCats(); });
+function renderCats() {
+  const all = !selectedCats.size;
+  $('#catGrid').innerHTML = `<button class="cat ${all ? 'on' : ''}" data-cat="">🌍 All categories<small>mixed</small></button>` +
+    allCats.map((c) => `<button class="cat ${selectedCats.has(c.id) ? 'on' : ''}" data-cat="${c.id}">${c.emoji} ${esc(c.name)}<small>${c.count} questions</small></button>`).join('');
+  $('#catGrid').querySelectorAll('[data-cat]').forEach((b) => (b.onclick = () => {
+    const id = b.dataset.cat;
+    if (!id) selectedCats.clear();
+    else selectedCats.has(id) ? selectedCats.delete(id) : selectedCats.add(id);
+    store.set('cg-cats', [...selectedCats]);
+    renderCats();
+  }));
+  const names = all ? 'all categories' : allCats.filter((c) => selectedCats.has(c.id)).map((c) => c.name).join(', ');
+  $('#catNote').textContent = `Mixing ${names}`;
+}
+async function loadCats() {
+  const qs = await fetch(`/api/quiz-pack?cats=${[...selectedCats].join(',')}&n=${$('#quizN').value}`).then((r) => r.json());
+  $('#quizText').value = quizToText(qs);
+  $('#catNote').textContent = `Loaded ${qs.length} questions. Press Start quiz, or open the editor below to tweak them.`;
+}
+$('#loadCats').onclick = loadCats;
 $('#startQuiz').onclick = async () => {
-  if (!$('#quizText').value.trim()) await $('#loadSample').onclick();
+  if (!$('#quizText').value.trim()) await loadCats();
   const questions = parseQuiz($('#quizText').value);
   if (!questions.length) return ($('#err').textContent = 'No valid questions found. Mark each correct answer with a *.');
   try { localStorage.setItem('cg-quiz', $('#quizText').value); } catch {}
@@ -179,6 +202,7 @@ function showCouplePhones() {
 
 $('#loadCoupleQuiz').onclick = async () => {
   const p = await getPack();
+  $('#quizText').closest('details').open = true;
   $('#quizText').value = p.coupleQuiz.map((q) => [fill(q.q), ...q.options.map(fill)].join('\n')).join('\n\n');
   $('#err').textContent = '';
   alert('Template loaded. Edit the answers with the couple before the night. The * marks the correct answer, so move it to the right line.');
@@ -240,7 +264,6 @@ $('#startMusic').onclick = () => {
   send('host:startBingo', { mode: 'music', songs, pattern: $('#musicPattern').value, hideTitles: $('#hideTitles').checked });
 };
 try {
-  $('#quizText').value = localStorage.getItem('cg-quiz') || '';
   $('#songText').value = localStorage.getItem('cg-songs') || '';
   const hl = JSON.parse(localStorage.getItem('cg-hl') || 'null');
   if (hl) { $('#hlText').value = hl.t; $('#hlUnit').value = hl.u; }
@@ -418,7 +441,7 @@ function renderQuiz(st, g) {
   const lb = g.phase === 'reveal' ? `<div style="margin-top:3vh;width:min(70vw,900px)">${leaderboardHtml('Leaderboard', 5)}</div>` : '';
   const top = isHl ? hlCards(g.hl) : `<div class="qtext">${esc(q.q)}</div>`;
   st.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center">
-    <div class="qhead">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
+    <div class="qhead">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}${q.cat ? ` · <span class="qcat">${esc(q.cat)}</span>` : ''}</div>
     ${top}
     ${g.phase === 'question' ? `<div class="timer" id="timer"></div><div class="qhead">${g.answeredCount} answered</div>` : ''}
     <div class="opts">${opts}</div>${lb}</div>`;

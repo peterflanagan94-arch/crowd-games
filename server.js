@@ -7,6 +7,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES } = require('./quiz-sample');
+const { CATEGORIES, buildQuiz } = require('./quiz-packs');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -49,6 +50,13 @@ app.get('/api/qr', async (req, res) => {
 app.get('/api/sample-quiz', (_req, res) => res.json(SAMPLE_QUIZ));
 app.get('/api/sample-hl', (_req, res) => res.json(SAMPLE_HL));
 app.get('/api/wedding', (_req, res) => res.json(WEDDING));
+app.get('/api/quiz-categories', (_req, res) =>
+  res.json(CATEGORIES.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, count: c.questions.length }))));
+app.get('/api/quiz-pack', (req, res) => {
+  const cats = String(req.query.cats || '').split(',').filter(Boolean);
+  const n = Math.min(100, Math.max(1, Number(req.query.n) || 10));
+  res.json(buildQuiz(cats.length ? cats : CATEGORIES.map((c) => c.id), n, shuffle));
+});
 app.get('/api/challenges', (_req, res) => res.json(CHALLENGES));
 
 const shuffle = (a) => {
@@ -109,6 +117,7 @@ function startQuiz(room, { questions, seconds }, variant = 'quiz') {
       options: (q.options || []).map((o) => clean(o, 120)).filter(Boolean).slice(0, 4),
       answer: Number(q.answer),
       hl: q.hl,
+      cat: q.cat ? clean(q.cat, 40) : null,
       // Card rounds: "any" = every guess counts (an Ace with aces high-or-low), "none" = a pair, nobody scores.
       outcome: q.outcome === 'any' || q.outcome === 'none' ? q.outcome : null,
     }))
@@ -479,7 +488,7 @@ function hostView(room) {
       game: {
         type: 'quiz', variant: g.variant, phase: g.phase, index: g.index, total: g.questions.length,
         seconds: g.seconds, deadline: g.deadline, now: Date.now(),
-        question: q ? { q: q.q, options: q.options } : null,
+        question: q ? { q: q.q, options: q.options, cat: q.cat } : null,
         hl: q?.hl ? hlView(q.hl, g.phase === 'reveal', q.outcome) : null,
         answer: g.phase === 'reveal' ? q.answer : null,
         answeredCount: g.answers.size, counts: g.phase === 'reveal' ? counts : null,
@@ -546,7 +555,7 @@ function playerView(room, p) {
         type: 'quiz', variant: g.variant, phase: g.phase, index: g.index, total: g.questions.length,
         deadline: g.deadline, now: Date.now(), seconds: g.seconds,
         hl: q?.hl ? hlView(q.hl, g.phase === 'reveal', q.outcome) : null,
-        options: q ? q.options : null, question: q ? q.q : null,
+        options: q ? q.options : null, question: q ? q.q : null, cat: q?.cat || null,
         myChoice: mine ? mine.choice : null,
         answer: g.phase === 'reveal' ? q.answer : null,
         lastPoints: g.phase === 'reveal' ? g.lastPoints[p.id] || 0 : null,
