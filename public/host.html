@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crowd Games · Host</title>
+  <link rel="icon" href="/icon.svg" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="glow">
+  <div class="host">
+    <div class="maincol">
+    <section class="stage" id="stage"></section>
+  <div class="controls" id="controls">
+    <div class="bar">
+      <strong>DJ controls</strong>
+      <span class="tabs" id="tabs">
+        <button data-tab="quiz" class="on">Quiz</button>
+        <button data-tab="bingo">Bingo</button>
+        <button data-tab="music">Music bingo</button>
+      </span>
+      <span id="liveBar" class="bar"></span>
+      <span class="err" id="err"></span>
+      <button id="remoteBtn" title="Run the controls from your phone">📱 Phone remote</button>
+      <button class="toggle" id="toggle">Hide ▾</button>
+    </div>
+
+    <!-- setup panes (shown in lobby) -->
+    <div class="pane" data-pane="quiz">
+      <div class="muted">Paste your own questions, or use the starter quiz. Format: question on one line, then answers on the next lines. Put * in front of the correct one. Leave a blank line between questions.</div>
+      <textarea id="quizText" placeholder="Which decade did disco peak in?&#10;1960s&#10;*1970s&#10;1990s&#10;2000s"></textarea>
+      <div class="row2">
+        <label>Seconds per question <input id="quizSecs" type="number" min="5" max="120" value="20" /></label>
+        <label>&nbsp;<button id="loadSample" style="width:100%">Load starter quiz</button></label>
+      </div>
+      <button class="primary" id="startQuiz">Start quiz</button>
+    </div>
+
+    <div class="pane hidden" data-pane="bingo">
+      <div class="muted">Classic 75-number bingo. Every phone gets its own card and the server checks each claim.</div>
+      <label>Winning pattern
+        <select id="bingoPattern"><option value="line">One line</option><option value="two">Two lines</option><option value="full">Full house</option></select>
+      </label>
+      <button class="primary" id="startBingo">Start bingo</button>
+    </div>
+
+    <div class="pane hidden" data-pane="music">
+      <div class="muted">Paste your playlist, one song per line (for example "Artist - Title"). You need 16 songs for a 4x4 card, or 24 or more for a 5x5 card. During the game, tap each song as you play it.</div>
+      <textarea id="songText" placeholder="Artist - Title&#10;Artist - Title"></textarea>
+      <div class="row2">
+        <label>Winning pattern
+          <select id="musicPattern"><option value="line">One line</option><option value="two">Two lines</option><option value="full">Full house</option></select>
+        </label>
+        <label><input type="checkbox" id="hideTitles" checked /> Hide song titles on the big screen (the crowd has to recognise them by ear)</label>
+      </div>
+      <button class="primary" id="startMusic">Start music bingo</button>
+    </div>
+
+    <!-- live panes -->
+    <div class="pane hidden" data-pane="liveMusic">
+      <input id="songFilter" placeholder="Search songs…" />
+      <div class="songpick" id="songPick"></div>
+    </div>
+  </div>
+
+    </div>
+    <aside class="side">
+      <div class="brand">Crowd<span>Games</span></div>
+      <div class="qr" id="sideQr"></div>
+      <div class="code" id="sideCode">····</div>
+      <div class="url muted" id="sideUrl"></div>
+      <div class="muted"><b id="pcount">0</b> players</div>
+      <div class="plist" id="plist"></div>
+    </aside>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/host.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+/* Phone player view. */
+const socket = io();
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const SHAPES = ['▲', '◆', '●', '■'];
+const params = new URLSearchParams(location.search);
+const code = (params.get('room') || '').toUpperCase().trim();
+
+const store = {
+  get(k, d = null) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const sessKey = `cg-player-${code}`;
+let session = store.get(sessKey); // { playerId, name }
+let state = null;
+let tick = null;
+let clockOffset = 0;
+let cardKey = '';
+let marks = new Set();
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function showJoin(err = '') {
+  $('#main').innerHTML = `<form id="joinForm" style="display:grid;gap:12px">
+    <div class="center"><div class="muted">Room</div><div class="huge">${esc(code || '?')}</div></div>
+    ${code ? '' : '<input name="room" placeholder="Room code" maxlength="4" required />'}
+    <input name="name" placeholder="Your nickname" maxlength="20" autocomplete="nickname" required autofocus />
+    <button class="primary big">Let's go!</button>
+    <div class="err center">${esc(err)}</div>
+  </form>`;
+  $('#joinForm').onsubmit = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    if (!code) { location.search = `?room=${encodeURIComponent(String(f.get('room')).toUpperCase())}`; return; }
+    join(String(f.get('name')));
+  };
+}
+
+function join(name) {
+  socket.emit('player:join', { code, name, playerId: session?.playerId }, (r) => {
+    if (r.error) {
+      if (session) { session = null; store.set(sessKey, null); }
+      return showJoin(r.error);
+    }
+    session = { playerId: r.playerId, name: r.name };
+    store.set(sessKey, session);
+  });
+}
+
+socket.on('connect', () => (session && code ? join(session.name) : showJoin()));
+socket.on('kicked', () => {
+  store.set(sessKey, null); session = null; state = null;
+  $('#main').innerHTML = '<div class="center big">You were removed from the game.</div>';
+});
+socket.on('disconnect', () => toast('Reconnecting…'));
+socket.on('state', (s) => {
+  state = s;
+  if (s.game?.now) clockOffset = s.game.now - Date.now();
+  render();
+});
+
+function render() {
+  clearInterval(tick);
+  if (!state) return;
+  const me = state.me;
+  $('#who').innerHTML = `<b>${esc(me.name)}</b> · ${state.game?.type === 'quiz' ? `${me.score} pts` : `room ${state.code}`}`;
+  const g = state.game;
+  if (!g) {
+    $('#main').innerHTML = `<div class="center"><div class="huge">🎧</div><div class="big">You're in!</div>
+      <p class="muted">Watch the big screen. The DJ will start the next game soon.</p>
+      <p class="muted">${state.playerCount} players in the room</p></div>`;
+    return;
+  }
+  if (g.type === 'quiz') return renderQuiz(g, me);
+  return renderBingo(g);
+}
+
+function renderQuiz(g, me) {
+  const m = $('#main');
+  if (g.phase === 'intro') {
+    m.innerHTML = `<div class="center"><div class="huge">🧠</div><div class="big">Quiz is starting</div><p class="muted">Answer fast for extra points.</p></div>`;
+    return;
+  }
+  if (g.phase === 'final') {
+    const medal = ['🥇', '🥈', '🥉'][me.rank - 1] || '🎉';
+    m.innerHTML = `<div class="center"><div class="huge">${medal}</div><div class="big">You finished #${me.rank}</div><p class="muted">${me.score} points</p>
+      ${(g.top || []).map((p, i) => `<div>${i + 1}. ${esc(p.name)} (${p.score})</div>`).join('')}</div>`;
+    return;
+  }
+  if (g.phase === 'reveal') {
+    let cls = 'meh', msg = "Time's up!";
+    if (g.myChoice != null) [cls, msg] = g.myChoice === g.answer ? ['good', `Correct! +${g.lastPoints}`] : ['bad', 'Not this time'];
+    m.innerHTML = `<div class="result ${cls}"><div class="big">${msg}</div>
+      <p>The answer was <b>${SHAPES[g.answer]} ${esc(g.options[g.answer])}</b></p></div>
+      <div class="center muted">You're #${me.rank} with ${me.score} points</div>`;
+    return;
+  }
+  // question
+  const answered = g.myChoice != null;
+  m.innerHTML = `<div class="center muted">Question ${g.index + 1} of ${g.total}</div>
+    <div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>
+    <div class="ptimer"><div id="bar"></div></div>
+    <div class="pans">${g.options.map((o, i) => `<button class="c${i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>
+      <span class="shape">${SHAPES[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
+    ${answered ? '<div class="center muted">Answer locked in! Waiting for everyone…</div>' : ''}`;
+  m.querySelectorAll('.pans button').forEach((b) => (b.onclick = () => {
+    navigator.vibrate?.(30);
+    socket.emit('player:answer', { choice: +b.dataset.i });
+  }));
+  const total = g.seconds * 1000;
+  const upd = () => {
+    const left = Math.max(0, g.deadline - (Date.now() + clockOffset));
+    const bar = $('#bar'); if (bar) bar.style.width = `${(left / total) * 100}%`;
+  };
+  upd();
+  tick = setInterval(upd, 250);
+}
+
+function renderBingo(g) {
+  const key = `cg-marks-${code}-${g.card.map((c) => c.id).join(',')}`;
+  if (key !== cardKey) { cardKey = key; marks = new Set(store.get(key, [])); }
+  const patternName = { line: 'one line', two: 'two lines', full: 'a full house' }[g.pattern];
+  const heads = g.mode === 'numbers' ? `<div class="heads">${'BINGO'.split('').map((l) => `<div>${l}</div>`).join('')}</div>` : '';
+  const cells = g.card.map((c, i) => {
+    if (c.id === 'FREE') return `<div class="cell free">★<br>FREE</div>`;
+    const label = g.mode === 'numbers' ? c.id : esc(c.label);
+    return `<div class="cell ${marks.has(c.id) ? 'marked' : ''}" data-id="${esc(c.id)}">${label}</div>`;
+  }).join('');
+  let last;
+  if (g.mode === 'music' && g.hideTitles) last = g.calledCount ? `<b>♪ Song ${g.calledCount} is playing</b>Listen and tap it if it's on your card` : 'Get ready for the first song';
+  else last = g.lastCalled ? `Last called<b>${esc(g.lastCalled)}</b>` : 'Waiting for the first call…';
+  $('#main').innerHTML = `
+    <div class="lastcall">${last}</div>
+    <div class="card ${g.mode}" style="grid-template-columns:repeat(${g.size},1fr)">${heads}${cells}</div>
+    <div class="center muted">Playing for ${patternName}${g.winners.length ? ` · Winners: ${g.winners.map(esc).join(', ')}` : ''}</div>
+    ${g.won ? '<div class="result good"><div class="big">🎉 You won!</div></div>' : '<button class="primary claim" id="claim">BINGO!</button>'}`;
+  $('#main').querySelectorAll('.cell[data-id]').forEach((el) => (el.onclick = () => {
+    const id = el.dataset.id;
+    marks.has(id) ? marks.delete(id) : marks.add(id);
+    el.classList.toggle('marked');
+    store.set(cardKey, [...marks]);
+    navigator.vibrate?.(15);
+  }));
+  const claim = $('#claim');
+  if (claim) claim.onclick = () => {
+    claim.disabled = true;
+    socket.emit('player:claim', {}, (r) => {
+      if (!r?.valid) {
+        toast('Not yet! Your card doesn’t have a winning pattern from the calls so far.');
+        setTimeout(() => (claim.disabled = false), 3000);
+      }
+    });
+  };
+}
