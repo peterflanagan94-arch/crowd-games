@@ -45,15 +45,13 @@ DJ shortcuts on the host screen:
 
 ## Deploy
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/peterflanagan94-arch/crowd-games)
-
-1. Click the button above and sign in to Render. You can sign up with GitHub.
-2. Allow Render to access the `crowd-games` repo, then click **Apply**. `render.yaml` sets up a free web service called `crowd-qr-games`.
-3. After about 2 minutes you get a URL like `https://crowd-qr-games.onrender.com`. Open `/host` on the big screen.
+Runs on Render as the `crowd-qr-games` web service (see `render.yaml`). Open `/host` on the big screen.
 
 Every push to `main` redeploys automatically. On the free plan the service sleeps after 15 minutes idle, so open the host page a few minutes before your set to wake it up. A paid instance (about $7 a month) stays awake.
 
 You can use any other Node host that supports WebSockets, such as Railway or Fly.io, with `npm start`. The server listens on `PORT`.
+
+Set `HOST_PASSWORD` to make hosting private: `/host` and the question packs then need a login at `/login`, while guests still join with just the room code. The DJ phone remote link logs that phone in automatically. `/logout` signs out.
 
 Set `PUBLIC_URL` (for example `https://games.example.com`) if the QR code should point to a different domain than the one the host page was loaded from.
 

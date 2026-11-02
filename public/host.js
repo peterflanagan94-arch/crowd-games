@@ -41,7 +41,8 @@ socket.on('connect', () => {
 });
 function create() { socket.emit('host:create', {}, onRoom); }
 let remoteUrl = '';
-async function onRoom({ code, hostKey }) {
+async function onRoom({ code, hostKey, error }) {
+  if (error === 'Login required') return location.replace('/login?next=/host');
   if (!isRemote) {
     save({ code, hostKey });
     if (location.search) history.replaceState(null, '', '/host');

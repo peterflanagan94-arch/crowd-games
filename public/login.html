@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crowd QR Games · Host login</title>
+  <link rel="icon" href="/icon.svg" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="glow home">
+  <main class="login-wrap">
+    <form class="join-card login-card" method="post" action="/login">
+      <span class="brand logo"><img src="/icon.svg" alt="" width="34" height="34" />Crowd <span>QR</span> Games</span>
+      <h2>Host login</h2>
+      <p class="muted">Hosting is private for now. Guests don't need this: they join with the room code.</p>
+      <p class="login-err" id="err" hidden></p>
+      <input type="password" name="password" placeholder="Password" autocomplete="current-password" required autofocus aria-label="Password" />
+      <input type="hidden" name="next" id="next" value="/host" />
+      <button class="primary big-btn">Log in</button>
+    </form>
+  </main>
+  <script>
+    const q = new URLSearchParams(location.search);
+    if (q.get('next')) document.getElementById('next').value = q.get('next');
+    const err = q.get('err');
+    if (err) { const e = document.getElementById('err'); e.hidden = false; e.textContent = err === 'wait' ? 'Too many tries. Wait a minute and try again.' : "That password isn't right."; }
+  </script>
+</body>
+</html>

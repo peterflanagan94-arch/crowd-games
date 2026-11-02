@@ -16,6 +16,65 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// ---------- private mode ----------
+// Set HOST_PASSWORD to lock the host screen (and the question packs behind it)
+// so only you can start games. Guests joining with a room code are unaffected.
+const HOST_PASSWORD = process.env.HOST_PASSWORD || '';
+const HOST_TOKEN = HOST_PASSWORD ? crypto.createHmac('sha256', HOST_PASSWORD).update('crowd-qr-host').digest('hex') : '';
+const COOKIE = 'cg_host';
+
+const readCookie = (header, name) => {
+  for (const part of String(header || '').split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(v.join('='));
+  }
+  return '';
+};
+const safeEqual = (a, b) => {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+const isHostAuthed = (cookieHeader) => !HOST_PASSWORD || safeEqual(readCookie(cookieHeader, COOKIE), HOST_TOKEN);
+const setHostCookie = (req, res) => {
+  const secure = (req.headers['x-forwarded-proto'] || req.protocol) === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${COOKIE}=${HOST_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure}`);
+};
+
+// Keep it out of search engines until launch.
+app.use((_req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex, nofollow'); next(); });
+app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nDisallow: /\n'));
+
+const failedLogins = new Map(); // ip -> { n, until }
+app.post('/login', express.urlencoded({ extended: false, limit: '2kb' }), (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+  const f = failedLogins.get(ip);
+  if (f && f.until > Date.now()) return res.redirect('/login?err=wait');
+  const next = /^\/(?!\/)/.test(req.body?.next || '') ? req.body.next : '/host';
+  if (HOST_PASSWORD && safeEqual(req.body?.password || '', HOST_PASSWORD)) {
+    failedLogins.delete(ip);
+    setHostCookie(req, res);
+    return res.redirect(next);
+  }
+  const n = (f?.n || 0) + 1;
+  failedLogins.set(ip, { n, until: n >= 5 ? Date.now() + 60_000 : 0 });
+  res.redirect('/login?err=1&next=' + encodeURIComponent(next));
+});
+app.get('/logout', (_req, res) => {
+  res.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  res.redirect('/');
+});
+
+app.use((req, res, next) => {
+  if (!HOST_PASSWORD) return next();
+  const gated = req.path === '/host' || req.path === '/host.html' || req.path.startsWith('/api/');
+  if (!gated || isHostAuthed(req.headers.cookie)) return next();
+  // The DJ phone remote link carries the room's host key: treat it as a login for that phone.
+  const r = req.path.startsWith('/host') && rooms.get(String(req.query.room || '').toUpperCase());
+  if (r && req.query.key && safeEqual(req.query.key, r.hostKey)) { setHostCookie(req, res); return next(); }
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Login required' });
+  res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
+});
+
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 // ---------- helpers ----------
@@ -611,6 +670,7 @@ io.on('connection', (socket) => {
   };
 
   socket.on('host:create', (_d, cb) => {
+    if (!isHostAuthed(socket.handshake.headers.cookie)) return ack(cb, { error: 'Login required' });
     room = createRoom();
     isHost = true;
     room.hostSockets.add(socket.id);
