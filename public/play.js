@@ -91,10 +91,36 @@ function render() {
       <p class="muted">${state.playerCount} players in the room</p></div>`;
     return;
   }
+  if (g.type === 'challenge') return renderChallenge(g);
   if (g.type === 'couple') return renderCoupleGuest(g, me);
   if (g.type === 'poll') return renderPoll(g);
   if (g.type === 'quiz') return renderQuiz(g, me);
   return renderBingo(g);
+}
+
+let lastBuzz = '';
+function renderChallenge(g) {
+  const m = $('#main');
+  if (g.phase === 'signup') {
+    m.innerHTML = `<div class="center muted">🎲 Volunteers wanted</div>
+      <div class="center big">${esc(g.title)}</div>
+      <button class="${g.imIn ? 'secondary' : 'primary'} claim" id="imin" style="min-height:140px;font-size:30px">${g.imIn ? "✓ You're in!" : "🙋 I'm in!"}</button>
+      <div class="center muted">${g.imIn ? 'Tap again to back out. ' : ''}${g.volunteerCount} ${g.volunteerCount === 1 ? 'volunteer' : 'volunteers'} so far</div>`;
+    $('#imin').onclick = () => { navigator.vibrate?.(20); socket.emit('player:volunteer', { in: !g.imIn }); };
+    return;
+  }
+  if (g.phase === 'drawing') {
+    m.innerHTML = `<div class="center"><div class="huge">🥁</div><div class="big">Drawing names…</div><p class="muted">${g.imIn ? 'Fingers crossed!' : 'Watch the big screen!'}</p></div>`;
+    return;
+  }
+  if (g.pickedMe) {
+    const key = `${g.title}|${g.picked.join(',')}`;
+    if (key !== lastBuzz) { lastBuzz = key; navigator.vibrate?.([200, 100, 200, 100, 400]); }
+    m.innerHTML = `<div class="result good"><div class="huge">🎉</div><div class="big">You've been picked!</div><p>${esc(g.title)}<br><b>Head up to the DJ now!</b></p></div>`;
+    return;
+  }
+  m.innerHTML = `<div class="center"><div class="big">${g.imIn ? 'Not this time!' : 'And the volunteers are…'}</div>
+    <p class="big" style="color:var(--accent2)">${g.picked.map(esc).join(', ')}</p><p class="muted">Give them a cheer! 👏</p></div>`;
 }
 
 // One of the couple answering in secret.

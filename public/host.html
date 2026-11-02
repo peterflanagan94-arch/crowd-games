@@ -24,6 +24,7 @@
         <button data-tab="music">Music bingo</button>
         <button data-tab="hl">Higher or lower</button>
         <button data-tab="poll">Crowd vote</button>
+        <button data-tab="challenge">🎲 Volunteer draw</button>
       </span>
       <span id="liveBar" class="bar"></span>
       <span class="err" id="err"></span>
@@ -134,6 +135,18 @@
         <div class="muted"><b>💍 Who's most likely to…?</b> A quick-fire series of votes where the guests pick between the couple. Press space to close each one, then press Next.</div>
         <button class="secondary" id="startMostLikely">Start "Who's most likely to…?"</button>
       </div>
+    </div>
+
+    <div class="pane hidden" data-pane="challenge">
+      <div class="muted"><b>Volunteer draw:</b> great between courses. Announce a challenge, and guests who fancy it tap "I'm in!" on their phones. Then draw people at random with a drumroll on the big screen. Picked guests get a buzz on their phone.</div>
+      <div class="row2">
+        <label>Challenge <input id="chTitle" maxlength="120" placeholder="e.g. Hula hoop-off: who can keep it going longest?" list="chPresets" /></label>
+        <label>How many to pick <input id="chCount" type="number" min="1" max="20" value="3" /></label>
+      </div>
+      <datalist id="chPresets"></datalist>
+      <div class="bar" id="chChips"></div>
+      <label><input type="checkbox" id="chExclude" checked /> Give everyone a turn: skip people already picked tonight (unless there's nobody else). <span class="muted" id="chTonight"></span></label>
+      <div class="bar"><button class="primary" id="startChallenge">Open sign-ups</button><button id="chReset">Reset tonight's picks</button></div>
     </div>
 
     <!-- live panes -->

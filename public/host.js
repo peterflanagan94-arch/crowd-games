@@ -136,6 +136,16 @@ function applyTheme(ev) {
   document.body.classList.toggle('is-wedding', ev.type === 'wedding');
 }
 
+// ---------- volunteer draw ----------
+fetch('/api/challenges').then((r) => r.json()).then((list) => {
+  $('#chPresets').innerHTML = list.map((c) => `<option value="${esc(c)}">`).join('');
+  $('#chChips').innerHTML = '<span class="muted">Ideas:</span>' + list.slice(0, 8).map((c) => `<button data-ch="${esc(c)}">${esc(c.split(':')[0])}</button>`).join('');
+  $('#chChips').querySelectorAll('[data-ch]').forEach((b) => (b.onclick = () => { $('#chTitle').value = b.dataset.ch; }));
+});
+$('#startChallenge').onclick = () => send('host:startChallenge', { title: $('#chTitle').value, count: +$('#chCount').value, exclude: $('#chExclude').checked });
+$('#chReset').onclick = () => confirm('Forget who has been picked tonight?') && send('host:resetPicked');
+let drawAnim = null;
+
 // ---------- Mr & Mrs ----------
 $('#loadCouple').onclick = async () => { $('#coupleText').value = (await getPack()).mrAndMrs.join('\n'); };
 $('#startCouple').onclick = async () => {
@@ -266,6 +276,7 @@ function primaryAction() {
   if (g.type === 'quiz' && g.phase !== 'final') return () => send('host:next');
   if (g.type === 'bingo' && g.mode === 'numbers') return () => send('host:call');
   if (g.type === 'couple' && g.phase !== 'final') return () => send('host:coupleNext');
+  if (g.type === 'challenge' && g.phase === 'signup') return () => send('host:draw');
   if (g.type === 'poll') return () => (g.open || g.index + 1 >= g.of ? send('host:pollOpen', { open: !g.open }) : send('host:pollNext'));
   return null;
 }
@@ -284,7 +295,14 @@ function renderControls() {
   });
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
-  if (g.type === 'couple') {
+  if (g.type === 'challenge') {
+    if (g.phase === 'signup') html += `<button class="primary" data-act="draw">🥁 Draw ${g.count} <span class="muted">(space)</span></button>`;
+    if (g.phase === 'picked') {
+      html += `<button data-act="drawOne">Pick one more</button>`;
+      if (g.picked.length >= 2) html += `<button class="secondary" data-act="chVote">🗳️ Crowd votes for the winner</button>`;
+    }
+    html += `<span class="muted">${g.volunteers.length} volunteers</span>`;
+  } else if (g.type === 'couple') {
     const label = { intro: 'First question', answering: "Reveal the couple's answers", couple: "Reveal the crowd's votes", crowd: g.index + 1 >= g.total ? 'Final scores' : 'Next question' }[g.phase];
     if (label) html += `<button class="primary" data-act="coupleNext">${label} <span class="muted">(space)</span></button>`;
     html += `<button data-act="couplePhones">📱 Couple's phones</button><span class="muted">${g.index >= 0 ? `Question ${g.index + 1} of ${g.total} · ` : ''}${g.votes} votes</span>`;
@@ -305,6 +323,9 @@ function renderControls() {
   html += `<button data-act="end">End game</button>`;
   live.innerHTML = html;
   live.querySelector('[data-act=next]')?.addEventListener('click', () => send('host:next'));
+  live.querySelector('[data-act=draw]')?.addEventListener('click', () => send('host:draw'));
+  live.querySelector('[data-act=drawOne]')?.addEventListener('click', () => send('host:draw', { n: 1 }));
+  live.querySelector('[data-act=chVote]')?.addEventListener('click', () => send('host:challengeVote'));
   live.querySelector('[data-act=coupleNext]')?.addEventListener('click', () => send('host:coupleNext'));
   live.querySelector('[data-act=couplePhones]')?.addEventListener('click', showCouplePhones);
   live.querySelector('[data-act=pollNext]')?.addEventListener('click', () => send('host:pollNext'));
@@ -372,6 +393,7 @@ function renderStage() {
     </div>`;
     return;
   }
+  if (g.type === 'challenge') return renderChallenge(st, g);
   if (g.type === 'couple') return renderCouple(st, g);
   if (g.type === 'poll') return renderPoll(st, g);
   if (g.type === 'quiz') return renderQuiz(st, g);
@@ -433,6 +455,48 @@ function hlCards(hl) {
     <div class="hlvs">vs</div>
     <div class="hlcard b"><div class="hllabel">${esc(hl.b.label)}</div>${bVal}${unit}</div>
   </div>`;
+}
+
+function renderChallenge(st, g) {
+  clearInterval(drawAnim);
+  if (g.phase === 'signup') {
+    st.innerHTML = `<div class="chal">
+      <div class="qhead">🎲 Volunteers wanted!</div>
+      <div class="qtext">${esc(g.title)}</div>
+      <div class="qhead" style="margin-top:2cqh">Fancy it? Tap <b>I'M IN</b> on your phone. We'll pick ${g.count} at random!</div>
+      <div class="chcount">${g.volunteers.length}</div><div class="qhead">${g.volunteers.length === 1 ? 'volunteer' : 'volunteers'}</div>
+      <div class="names chnames">${g.volunteers.map((n) => `<span>${esc(n)}</span>`).join('')}</div>
+    </div>`;
+    return;
+  }
+  const already = g.picked.filter((n) => !g.justPicked.includes(n));
+  if (g.phase === 'drawing') {
+    st.innerHTML = `<div class="chal"><div class="qhead">${esc(g.title)}</div><div class="qtext">🥁 Drumroll…</div>
+      <div class="slots">${g.justPicked.map((_, i) => `<div class="slot" id="slot${i}">?</div>`).join('')}</div></div>`;
+    // Spin random volunteer names through each slot, slowing down, then land on the picks.
+    const pool = g.volunteers.length ? g.volunteers : g.justPicked;
+    const start = Date.now();
+    const total = g.drawMs - 300;
+    let last = 0;
+    drawAnim = setInterval(() => {
+      const t = Date.now() - start;
+      const gap = 60 + (t / total) ** 2 * 400;
+      if (t - last < gap) return;
+      last = t;
+      g.justPicked.forEach((name, i) => {
+        const el = document.getElementById(`slot${i}`);
+        if (!el) return;
+        const landAt = total * (0.55 + (0.45 * (i + 1)) / g.justPicked.length);
+        if (t >= landAt) { el.textContent = name; el.classList.add('landed'); }
+        else el.textContent = pool[Math.floor(Math.random() * pool.length)];
+      });
+      if (t > total) clearInterval(drawAnim);
+    }, 30);
+    return;
+  }
+  st.innerHTML = `<div class="chal"><div class="qhead">${esc(g.title)}</div><div class="qtext">🎉 Come on up!</div>
+    <div class="slots">${g.justPicked.map((n) => `<div class="slot landed pop">${esc(n)}</div>`).join('')}</div>
+    ${already.length ? `<div class="qhead" style="margin-top:2cqh">Also up: ${already.map(esc).join(', ')}</div>` : ''}</div>`;
 }
 
 function renderCouple(st, g) {
@@ -539,6 +603,7 @@ function render() {
       applyTheme(ev);
     }
   }
+  if (state) $('#chTonight').textContent = state.pickedTonight ? `(${state.pickedTonight} picked so far tonight)` : '';
   renderSide();
   renderStage();
   renderControls();

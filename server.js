@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
-const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING } = require('./quiz-sample');
+const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES } = require('./quiz-sample');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -49,6 +49,7 @@ app.get('/api/qr', async (req, res) => {
 app.get('/api/sample-quiz', (_req, res) => res.json(SAMPLE_QUIZ));
 app.get('/api/sample-hl', (_req, res) => res.json(SAMPLE_HL));
 app.get('/api/wedding', (_req, res) => res.json(WEDDING));
+app.get('/api/challenges', (_req, res) => res.json(CHALLENGES));
 
 const shuffle = (a) => {
   const arr = [...a];
@@ -77,6 +78,7 @@ function createRoom() {
     hostKey: crypto.randomBytes(16).toString('hex'),
     coupleKey: crypto.randomBytes(12).toString('hex'), // for the couple's own phones in Mr & Mrs
     coupleSockets: { a: new Set(), b: new Set() },
+    pickedTonight: new Set(), // volunteer draw: people already picked, so others get a turn
     hostSockets: new Set(),
     players: new Map(), // playerId -> { id, name, score, sockets:Set, card?, answer? }
     game: null,
@@ -265,6 +267,42 @@ function pollCounts(g) {
   return c;
 }
 
+// ---------- volunteer draw ----------
+// The DJ announces a challenge (hula hoop-off, fancy-dress karaoke…). Guests who
+// want to take part tap "I'm in!", then the DJ draws people at random.
+const DRAW_MS = 3500; // drumroll before the names land
+
+function startChallenge(room, { title, count, exclude }) {
+  const t = clean(title, 120);
+  if (!t) return 'Give the challenge a name.';
+  room.game = {
+    type: 'challenge', title: t, count: Math.min(20, Math.max(1, Number(count) || 1)), exclude: exclude !== false,
+    phase: 'signup', volunteers: new Set(), picked: [], timer: null,
+  };
+  return null;
+}
+
+function drawVolunteers(room, n) {
+  const g = room.game;
+  const vols = [...g.volunteers].filter((id) => room.players.has(id) && !g.picked.includes(id));
+  if (!vols.length) return g.picked.length ? 'Everyone who volunteered has been picked.' : 'Nobody has volunteered yet.';
+  // Prefer people who haven't been up tonight; top up with repeats only if needed.
+  const fresh = shuffle(vols.filter((id) => !g.exclude || !room.pickedTonight.has(id)));
+  const repeats = shuffle(vols.filter((id) => g.exclude && room.pickedTonight.has(id)));
+  const chosen = [...fresh, ...repeats].slice(0, n);
+  g.picked.push(...chosen);
+  for (const id of chosen) room.pickedTonight.add(id);
+  g.phase = 'drawing';
+  g.justPicked = chosen;
+  clearTimeout(g.timer);
+  g.timer = setTimeout(() => {
+    if (room.game !== g) return;
+    g.phase = 'picked';
+    broadcast(room);
+  }, DRAW_MS);
+  return null;
+}
+
 // ---------- Mr & Mrs (couple game) ----------
 // Each question has the couple's two names as options. The couple answer secretly
 // (on their own phones, or the DJ taps their answers in) while guests vote on who
@@ -402,8 +440,20 @@ function checkClaim(room, p) {
 // ---------- state views ----------
 function hostView(room) {
   const g = room.game;
-  const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room) };
+  const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room), pickedTonight: room.pickedTonight.size };
   if (!g) return { ...base, game: null };
+  if (g.type === 'challenge') {
+    const nameOf = (id) => room.players.get(id)?.name || '?';
+    return {
+      ...base,
+      game: {
+        type: 'challenge', title: g.title, count: g.count, exclude: g.exclude, phase: g.phase,
+        volunteers: [...g.volunteers].filter((id) => room.players.has(id)).map(nameOf),
+        picked: g.picked.map(nameOf), justPicked: (g.justPicked || []).map(nameOf), drawMs: DRAW_MS,
+        pickedTonight: room.pickedTonight.size,
+      },
+    };
+  }
   if (g.type === 'couple') {
     const revealed = g.phase === 'couple' || g.phase === 'crowd';
     return {
@@ -458,6 +508,18 @@ function playerView(room, p) {
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
   const base = { role: 'player', code: room.code, event: room.event, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
   if (!g) return { ...base, game: null };
+  if (g.type === 'challenge') {
+    const shown = g.phase === 'picked';
+    return {
+      ...base,
+      game: {
+        type: 'challenge', title: g.title, phase: g.phase, imIn: g.volunteers.has(p.id), volunteerCount: g.volunteers.size,
+        // Who was picked stays secret during the drumroll.
+        pickedMe: shown && g.picked.includes(p.id),
+        picked: shown ? g.picked.map((id) => room.players.get(id)?.name || '?') : null,
+      },
+    };
+  }
   if (g.type === 'couple') {
     const revealed = g.phase === 'couple' || g.phase === 'crowd';
     return {
@@ -641,6 +703,21 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
+  socket.on('host:startChallenge', host((d) => startChallenge(room, d)));
+  socket.on('host:draw', host(({ n }) => {
+    const g = room.game;
+    if (g?.type !== 'challenge') return 'No volunteer draw running';
+    if (g.phase === 'drawing') return 'Drawing already';
+    return drawVolunteers(room, Number(n) || g.count);
+  }));
+  socket.on('host:challengeVote', host(() => {
+    const g = room.game;
+    if (g?.type !== 'challenge') return 'No volunteer draw running';
+    const names = g.picked.map((id) => room.players.get(id)?.name).filter(Boolean);
+    if (names.length < 2) return 'Pick at least 2 people to vote on a winner.';
+    return startPoll(room, { question: `Who won: ${g.title}?`, options: names });
+  }));
+  socket.on('host:resetPicked', host(() => { room.pickedTonight.clear(); }));
   socket.on('host:startCouple', host((d) => startCouple(room, d)));
   socket.on('host:coupleNext', host(() => {
     if (room.game?.type !== 'couple') return 'No Mr & Mrs game running';
@@ -675,6 +752,14 @@ io.on('connection', (socket) => {
     const c = Number(choice);
     if (!(c >= 0 && c < g.options.length)) return;
     g.votes.set(player.id, c); // players can change their mind while the vote is open
+    broadcast(room);
+  });
+
+  socket.on('player:volunteer', ({ in: wantIn } = {}) => {
+    const g = room?.game;
+    if (!player || g?.type !== 'challenge' || g.phase !== 'signup') return;
+    if (wantIn) g.volunteers.add(player.id);
+    else g.volunteers.delete(player.id);
     broadcast(room);
   });
 

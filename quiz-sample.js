@@ -130,4 +130,20 @@ const WEDDING = {
   ],
 };
 
-module.exports = { SAMPLE_QUIZ, SAMPLE_HL, WEDDING };
+// Volunteer draw ideas for between courses or between sets.
+const CHALLENGES = [
+  'Hula hoop-off: who can keep it going longest?',
+  'Fancy-dress karaoke',
+  'Dance-off',
+  'Air guitar champion',
+  'Limbo',
+  'Best celebrity impression',
+  'Napkin twirl: lead the room!',
+  'Musical statues',
+  'Name that tune (live, on the mic)',
+  'Best worst dad dance',
+  'Paper plane longest flight',
+  'Balloon pop race',
+];
+
+module.exports = { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES };

@@ -171,6 +171,37 @@ server.listen(0, async () => {
   assert.equal(rm.game.agreed, 1);
   coupleA.close();
 
+  // Volunteer draw
+  assert.ok((await call(host, 'host:startChallenge', { title: 'Hula hoop-off', count: 1 })).ok);
+  assert.ok((await call(host, 'host:draw')).error, 'no volunteers yet');
+  players[0].emit('player:volunteer', { in: true });
+  players[1].emit('player:volunteer', { in: true });
+  await wait(100);
+  assert.equal(latest.get('Ana').game.volunteerCount, 2);
+  assert.ok((await call(host, 'host:draw')).ok);
+  await wait(100);
+  assert.equal(rooms.get(code).game.phase, 'drawing');
+  assert.equal(latest.get('Ana').game.picked, null, 'picks secret during drumroll');
+  await wait(3600);
+  const first = rooms.get(code).game.picked[0];
+  const firstName = rooms.get(code).players.get(first).name;
+  assert.equal(latest.get(firstName).game.pickedMe, true);
+  assert.equal(latest.get(firstName === 'Ana' ? 'Ben' : 'Ana').game.pickedMe, false);
+  // Next challenge: the person picked tonight is skipped while someone else is available.
+  await call(host, 'host:startChallenge', { title: 'Karaoke', count: 1 });
+  players[0].emit('player:volunteer', { in: true });
+  players[1].emit('player:volunteer', { in: true });
+  await wait(100);
+  await call(host, 'host:draw');
+  assert.notEqual(rooms.get(code).game.picked[0], first, 'gives everyone a turn');
+  await wait(3600);
+  assert.ok((await call(host, 'host:draw', { n: 1 })).ok, 'pick one more');
+  await wait(3600);
+  assert.equal(rooms.get(code).game.picked.length, 2);
+  assert.ok((await call(host, 'host:draw', { n: 1 })).error, 'nobody left');
+  assert.ok((await call(host, 'host:challengeVote')).ok);
+  assert.equal(rooms.get(code).game.type, 'poll');
+
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());
   server.close(); process.exit(0);
