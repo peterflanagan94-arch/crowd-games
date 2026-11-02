@@ -15,4 +15,23 @@ const SAMPLE_QUIZ = [
   { q: 'What is the chemical symbol for gold?', options: ['Go', 'Gd', 'Au', 'Ag'], answer: 2 },
 ];
 
-module.exports = { SAMPLE_QUIZ };
+// Higher or lower starter: years things happened. Neighbours must differ.
+const SAMPLE_HL = {
+  unit: 'year',
+  items: [
+    { label: 'First Moon landing', value: 1969 },
+    { label: 'MTV launches', value: 1981 },
+    { label: 'Sony Walkman goes on sale', value: 1979 },
+    { label: 'Compact discs go on sale', value: 1982 },
+    { label: 'Berlin Wall falls', value: 1989 },
+    { label: 'Channel Tunnel opens', value: 1994 },
+    { label: 'World Wide Web opens to the public', value: 1991 },
+    { label: 'YouTube launches', value: 2005 },
+    { label: 'First iPhone goes on sale', value: 2007 },
+    { label: 'Spotify launches', value: 2008 },
+    { label: 'Titanic sinks', value: 1912 },
+    { label: 'First FIFA World Cup', value: 1930 },
+  ],
+};
+
+module.exports = { SAMPLE_QUIZ, SAMPLE_HL };

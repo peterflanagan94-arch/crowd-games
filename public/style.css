@@ -97,6 +97,21 @@ h1, h2, h3 { margin: 0 0 .4em; }
 .flash.bad { background: var(--bad); }
 .winners { margin-top: 2cqh; font-size: 3cqh; color: var(--good); text-align: center; }
 
+.hl { display: flex; align-items: center; gap: 3cqw; margin: 2cqh 0; }
+.hlcard { background: var(--panel); border-radius: 24px; padding: 4cqh 3cqw; width: min(32cqw, 520px); text-align: center; }
+.hlcard.b { outline: 3px dashed var(--accent2); }
+.hllabel { font-size: max(18px, 4.5cqh); font-weight: 800; line-height: 1.15; min-height: 2.3em; display: grid; place-items: center; }
+.hlval { font-size: 13cqh; font-weight: 900; color: var(--accent2); line-height: 1.1; }
+.hlval.hidden-val { color: var(--muted); }
+.hlval.pop { animation: pop .4s ease; color: var(--accent); }
+.hlunit { color: var(--muted); font-size: max(14px, 3cqh); }
+.hlvs { font-size: 6cqh; font-weight: 900; color: var(--muted); }
+.poll { width: min(80cqw, 1100px); display: flex; flex-direction: column; align-items: center; }
+.pollrows { width: 100%; display: grid; gap: 2cqh; margin-top: 3cqh; }
+.pollrow { position: relative; background: var(--panel); border-radius: 16px; overflow: hidden; display: flex; justify-content: space-between; align-items: center; padding: 2.4cqh 2cqw; font-size: max(18px, 4.4cqh); font-weight: 800; }
+.pollrow.win { outline: 5px solid #fff; }
+.pollbar { position: absolute; inset: 0 auto 0 0; opacity: .85; transition: width .5s ease; }
+.polllabel, .pollpct { position: relative; }
 /* controls drawer */
 .controls { background: #12121f; border-top: 1px solid #2a2a48; padding: 12px 20px; max-height: 55vh; overflow: auto; flex-shrink: 0; }
 .controls.collapsed .pane { display: none !important; }

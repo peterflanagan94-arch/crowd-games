@@ -18,6 +18,8 @@
         <button data-tab="quiz" class="on">Quiz</button>
         <button data-tab="bingo">Bingo</button>
         <button data-tab="music">Music bingo</button>
+        <button data-tab="hl">Higher or lower</button>
+        <button data-tab="poll">Crowd vote</button>
       </span>
       <span id="liveBar" class="bar"></span>
       <span class="err" id="err"></span>
@@ -54,6 +56,32 @@
         <label><input type="checkbox" id="hideTitles" checked /> Hide song titles on the big screen (the crowd has to recognise them by ear)</label>
       </div>
       <button class="primary" id="startMusic">Start music bingo</button>
+    </div>
+
+    <div class="pane hidden" data-pane="hl">
+      <div class="muted">One item per line as "label | number". Each round shows the last item's number, and the crowd guesses whether the next one is higher or lower. Neighbouring items need different numbers.</div>
+      <textarea id="hlText" placeholder="First Moon landing | 1969&#10;MTV launches | 1981"></textarea>
+      <div class="row2">
+        <label>Unit (optional, e.g. year, BPM, million streams) <input id="hlUnit" placeholder="year" /></label>
+        <label>Seconds per round <input id="hlSecs" type="number" min="5" max="120" value="15" /></label>
+      </div>
+      <div class="row2">
+        <button id="loadHl">Load starter set (years)</button>
+        <button class="primary" id="startHl">Start higher or lower</button>
+      </div>
+    </div>
+
+    <div class="pane hidden" data-pane="poll">
+      <div class="muted">Let the crowd pick what happens next. Results show live on the big screen. There's no scoring, it's just for fun.</div>
+      <input id="pollQ" placeholder="Question, e.g. What should I play next?" />
+      <textarea id="pollOpts" placeholder="One option per line (2 to 6)" style="min-height:100px"></textarea>
+      <div class="bar">
+        <span class="muted">Quick picks:</span>
+        <button data-preset="genre">Next genre</button>
+        <button data-preset="decade">Next decade</button>
+        <button data-preset="tempo">Speed it up?</button>
+      </div>
+      <button class="primary" id="startPoll">Start vote</button>
     </div>
 
     <!-- live panes -->

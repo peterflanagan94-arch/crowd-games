@@ -105,6 +105,35 @@ $('#startQuiz').onclick = async () => {
   try { localStorage.setItem('cg-quiz', $('#quizText').value); } catch {}
   send('host:startQuiz', { questions, seconds: +$('#quizSecs').value });
 };
+$('#loadHl').onclick = async () => {
+  const d = await fetch('/api/sample-hl').then((r) => r.json());
+  $('#hlText').value = d.items.map((i) => `${i.label} | ${i.value}`).join('\n');
+  $('#hlUnit').value = d.unit;
+};
+$('#startHl').onclick = async () => {
+  if (!$('#hlText').value.trim()) await $('#loadHl').onclick();
+  const items = $('#hlText').value.split('\n').map((l) => {
+    const m = l.match(/^(.*)\|\s*(-?[\d.,]+)\s*$/);
+    return m && { label: m[1].trim(), value: Number(m[2].replace(/,/g, '')) };
+  }).filter(Boolean);
+  if (items.length < 2) return ($('#err').textContent = 'Add at least 2 lines like "Label | 123".');
+  try { localStorage.setItem('cg-hl', JSON.stringify({ t: $('#hlText').value, u: $('#hlUnit').value })); } catch {}
+  send('host:startHigherLower', { items, unit: $('#hlUnit').value, seconds: +$('#hlSecs').value });
+};
+const PRESETS = {
+  genre: ['What should I play next?', 'House\nHip hop\nRock anthems\nThrowback pop'],
+  decade: ['Which decade next?', '80s\n90s\n2000s\nRight now'],
+  tempo: ['Speed it up or slow it down?', 'Faster!\nKeep it here\nSlow it down'],
+};
+document.querySelectorAll('[data-preset]').forEach((b) => (b.onclick = () => {
+  const [q, o] = PRESETS[b.dataset.preset];
+  $('#pollQ').value = q; $('#pollOpts').value = o;
+}));
+$('#startPoll').onclick = () => {
+  const options = $('#pollOpts').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  send('host:startPoll', { question: $('#pollQ').value, options });
+};
+
 $('#startBingo').onclick = () => send('host:startBingo', { mode: 'numbers', pattern: $('#bingoPattern').value });
 $('#startMusic').onclick = () => {
   const songs = $('#songText').value.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -114,6 +143,8 @@ $('#startMusic').onclick = () => {
 try {
   $('#quizText').value = localStorage.getItem('cg-quiz') || '';
   $('#songText').value = localStorage.getItem('cg-songs') || '';
+  const hl = JSON.parse(localStorage.getItem('cg-hl') || 'null');
+  if (hl) { $('#hlText').value = hl.t; $('#hlUnit').value = hl.u; }
 } catch {}
 
 $('#songFilter').oninput = () => renderSongPick();
@@ -145,6 +176,7 @@ function primaryAction() {
   if (!g) return null;
   if (g.type === 'quiz' && g.phase !== 'final') return () => send('host:next');
   if (g.type === 'bingo' && g.mode === 'numbers') return () => send('host:call');
+  if (g.type === 'poll') return () => send('host:pollOpen', { open: !g.open });
   return null;
 }
 
@@ -160,10 +192,12 @@ function renderControls() {
   });
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
-  if (g.type === 'quiz') {
-    const label = { intro: 'Start first question', question: 'Reveal answer', reveal: g.index + 1 >= g.total ? 'Final results' : 'Next question' }[g.phase];
+  if (g.type === 'poll') {
+    html += `<button class="primary" data-act="poll">${g.open ? 'Close voting' : 'Reopen voting'} <span class="muted">(space)</span></button><span class="muted">${g.total} votes</span>`;
+  } else if (g.type === 'quiz') {
+    const label = { intro: g.variant === 'hl' ? 'Start first round' : 'Start first question', question: 'Reveal answer', reveal: g.index + 1 >= g.total ? 'Final results' : g.variant === 'hl' ? 'Next round' : 'Next question' }[g.phase];
     if (label) html += `<button class="primary" data-act="next">${label} <span class="muted">(space)</span></button>`;
-    html += `<span class="muted">Question ${Math.max(0, g.index + 1)} of ${g.total}</span>`;
+    html += `<span class="muted">${g.variant === 'hl' ? 'Round' : 'Question'} ${Math.max(0, g.index + 1)} of ${g.total}</span>`;
   } else {
     if (g.mode === 'numbers') html += `<button class="primary" data-act="call">Call next number <span class="muted">(space)</span></button>`;
     html += `<select data-act="pattern">${['line', 'two', 'full'].map((p) => `<option value="${p}" ${p === g.pattern ? 'selected' : ''}>${{ line: 'One line', two: 'Two lines', full: 'Full house' }[p]}</option>`).join('')}</select>`;
@@ -173,6 +207,7 @@ function renderControls() {
   html += `<button data-act="end">End game</button>`;
   live.innerHTML = html;
   live.querySelector('[data-act=next]')?.addEventListener('click', () => send('host:next'));
+  live.querySelector('[data-act=poll]')?.addEventListener('click', () => send('host:pollOpen', { open: !g.open }));
   live.querySelector('[data-act=call]')?.addEventListener('click', () => send('host:call'));
   live.querySelector('[data-act=pattern]')?.addEventListener('change', (e) => send('host:pattern', { pattern: e.target.value }));
   live.querySelector('[data-act=hide]')?.addEventListener('change', (e) => send('host:hideTitles', { on: e.target.checked }));
@@ -223,13 +258,15 @@ function renderStage() {
     </div>`;
     return;
   }
+  if (g.type === 'poll') return renderPoll(st, g);
   if (g.type === 'quiz') return renderQuiz(st, g);
   return renderBingo(st, g);
 }
 
 function renderQuiz(st, g) {
+  const isHl = g.variant === 'hl';
   if (g.phase === 'intro') {
-    st.innerHTML = `<div class="center"><div class="qhead">Get your phones ready</div><div class="qtext">Quiz time!</div><div class="qhead" style="margin-top:2vh">${g.total} questions · ${state.players.length} players</div></div>`;
+    st.innerHTML = `<div class="center"><div class="qhead">Get your phones ready</div><div class="qtext">${isHl ? 'Higher or lower?' : 'Quiz time!'}</div><div class="qhead" style="margin-top:2vh">${g.total} ${isHl ? 'rounds' : 'questions'} · ${state.players.length} players</div></div>`;
     return;
   }
   if (g.phase === 'final') { st.innerHTML = leaderboardHtml('🏆 Final scores', 10); return; }
@@ -237,12 +274,13 @@ function renderQuiz(st, g) {
   const opts = q.options.map((o, i) => {
     const cls = g.phase === 'reveal' ? (i === g.answer ? 'right' : 'dim') : '';
     const count = g.counts ? `<span class="count">${g.counts[i]}</span>` : '';
-    return `<div class="opt c${i} ${cls}"><span class="shape">${SHAPES[i]}</span>${esc(o)}${count}</div>`;
+    return `<div class="opt c${isHl ? 3 - i * 3 : i} ${cls}"><span class="shape">${isHl ? ['▲', '▼'][i] : SHAPES[i]}</span>${esc(o)}${count}</div>`;
   }).join('');
   const lb = g.phase === 'reveal' ? `<div style="margin-top:3vh;width:min(70vw,900px)">${leaderboardHtml('Leaderboard', 5)}</div>` : '';
+  const top = isHl ? hlCards(g.hl) : `<div class="qtext">${esc(q.q)}</div>`;
   st.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center">
-    <div class="qhead">Question ${g.index + 1} of ${g.total}</div>
-    <div class="qtext">${esc(q.q)}</div>
+    <div class="qhead">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
+    ${top}
     ${g.phase === 'question' ? `<div class="timer" id="timer"></div><div class="qhead">${g.answeredCount} answered</div>` : ''}
     <div class="opts">${opts}</div>${lb}</div>`;
   if (g.phase === 'question') {
@@ -253,6 +291,35 @@ function renderQuiz(st, g) {
     upd();
     tick = setInterval(upd, 250);
   }
+}
+
+const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
+function hlCards(hl) {
+  const unit = hl.unit ? `<div class="hlunit">${esc(hl.unit)}</div>` : '';
+  const bVal = hl.b.value == null ? '<div class="hlval hidden-val">?</div>' : `<div class="hlval pop">${fmtNum(hl.b.value)}</div>`;
+  return `<div class="hl">
+    <div class="hlcard"><div class="hllabel">${esc(hl.a.label)}</div><div class="hlval">${fmtNum(hl.a.value)}</div>${unit}</div>
+    <div class="hlvs">vs</div>
+    <div class="hlcard b"><div class="hllabel">${esc(hl.b.label)}</div>${bVal}${unit}</div>
+  </div>`;
+}
+
+function renderPoll(st, g) {
+  const max = Math.max(1, ...g.counts);
+  const win = g.open ? -1 : g.counts.indexOf(Math.max(...g.counts));
+  const rows = g.options.map((o, i) => {
+    const pct = g.total ? Math.round((g.counts[i] / g.total) * 100) : 0;
+    return `<div class="pollrow ${i === win && g.total ? 'win' : ''}">
+      <div class="pollbar c${i % 4}" style="width:${(g.counts[i] / max) * 100}%"></div>
+      <span class="polllabel"><span class="shape">${SHAPES[i % 4]}</span> ${esc(o)}</span><span class="pollpct">${pct}% · ${g.counts[i]}</span>
+    </div>`;
+  }).join('');
+  st.innerHTML = `<div class="poll">
+    <div class="qhead">${g.open ? 'Vote now on your phone!' : 'Voting closed'} · ${g.total} votes</div>
+    <div class="qtext">${esc(g.question)}</div>
+    <div class="pollrows">${rows}</div>
+    ${!g.open && g.total ? `<div class="winners">The crowd has spoken: ${esc(g.options[win])}!</div>` : ''}
+  </div>`;
 }
 
 function renderBingo(st, g) {

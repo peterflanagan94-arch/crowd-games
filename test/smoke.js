@@ -67,6 +67,35 @@ server.listen(0, async () => {
   await wait(100);
   assert.equal(latest.get('Ben').game.lastCalled, null, 'hidden titles not leaked to phones');
 
+  // Higher or lower
+  assert.ok((await call(host, 'host:startHigherLower', { items: [{ label: 'A', value: 5 }, { label: 'B', value: 5 }] })).error, 'equal neighbours rejected');
+  r = await call(host, 'host:startHigherLower', { items: [{ label: 'A', value: 10 }, { label: 'B', value: 20 }, { label: 'C', value: 3 }], unit: 'pts' });
+  assert.ok(r.ok, r.error);
+  assert.deepEqual(room.game.questions.map((q) => q.answer), [0, 1], 'B higher, C lower');
+  await call(host, 'host:next');
+  await wait(100);
+  assert.equal(latest.get('Ana').game.hl.b.value, null, 'hidden value not leaked');
+  players[0].emit('player:answer', { choice: 0 });
+  players[1].emit('player:answer', { choice: 1 });
+  await wait(150);
+  assert.equal(room.game.phase, 'reveal');
+  assert.equal(latest.get('Ana').game.hl.b.value, 20);
+  assert.ok(latest.get('Ana').game.lastPoints > 0 && latest.get('Ben').game.lastPoints === 0);
+
+  // Crowd vote
+  assert.ok((await call(host, 'host:startPoll', { question: 'Next?', options: ['Only one'] })).error);
+  assert.ok((await call(host, 'host:startPoll', { question: 'Next?', options: ['House', 'Rock', 'Pop'] })).ok);
+  players[0].emit('player:vote', { choice: 1 });
+  players[1].emit('player:vote', { choice: 1 });
+  players[1].emit('player:vote', { choice: 2 }); // changed mind
+  await wait(150);
+  assert.deepEqual(rooms.get(code).game && [...rooms.get(code).game.votes.values()].sort(), [1, 2]);
+  assert.equal(latest.get('Ana').game.counts, null, 'results hidden on phones while open');
+  await call(host, 'host:pollOpen', { open: false });
+  players[0].emit('player:vote', { choice: 0 }); // ignored once closed
+  await wait(150);
+  assert.deepEqual(latest.get('Ana').game.counts, [0, 1, 1]);
+
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());
   server.close(); process.exit(0);

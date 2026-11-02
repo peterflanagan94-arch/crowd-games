@@ -76,14 +76,35 @@ function render() {
       <p class="muted">${state.playerCount} players in the room</p></div>`;
     return;
   }
+  if (g.type === 'poll') return renderPoll(g);
   if (g.type === 'quiz') return renderQuiz(g, me);
   return renderBingo(g);
 }
 
+function renderPoll(g) {
+  const m = $('#main');
+  const total = g.counts ? g.counts.reduce((a, b) => a + b, 0) : 0;
+  m.innerHTML = `<div class="center muted">${g.open ? 'Crowd vote · tap to vote, you can change your mind' : 'Voting closed'}</div>
+    <div class="center big">${esc(g.question)}</div>
+    <div style="display:grid;gap:10px">${g.options.map((o, i) => `<button class="c${i % 4} ${g.myVote === i ? 'picked' : ''} ${g.myVote != null && g.myVote !== i ? 'faded' : ''}" data-i="${i}" ${g.open ? '' : 'disabled'} style="padding:20px;font-size:20px;border-radius:16px;text-align:left">
+      ${SHAPES[i % 4]} ${esc(o)}${g.counts ? ` <span style="float:right">${total ? Math.round((g.counts[i] / total) * 100) : 0}%</span>` : ''}</button>`).join('')}</div>
+    ${g.myVote != null && g.open ? '<div class="center muted">Vote counted! Watch the big screen.</div>' : ''}`;
+  m.querySelectorAll('button[data-i]').forEach((b) => (b.onclick = () => {
+    navigator.vibrate?.(20);
+    socket.emit('player:vote', { choice: +b.dataset.i });
+  }));
+}
+
+const HL_SHAPES = ['▲', '▼'];
+const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
+
 function renderQuiz(g, me) {
   const m = $('#main');
+  const isHl = g.variant === 'hl';
+  const shapes = isHl ? HL_SHAPES : SHAPES;
+  const unit = isHl && g.hl?.unit ? ` (${esc(g.hl.unit)})` : '';
   if (g.phase === 'intro') {
-    m.innerHTML = `<div class="center"><div class="huge">🧠</div><div class="big">Quiz is starting</div><p class="muted">Answer fast for extra points.</p></div>`;
+    m.innerHTML = `<div class="center"><div class="huge">🧠</div><div class="big">${isHl ? 'Higher or lower is starting' : 'Quiz is starting'}</div><p class="muted">Answer fast for extra points.</p></div>`;
     return;
   }
   if (g.phase === 'final') {
@@ -96,17 +117,21 @@ function renderQuiz(g, me) {
     let cls = 'meh', msg = "Time's up!";
     if (g.myChoice != null) [cls, msg] = g.myChoice === g.answer ? ['good', `Correct! +${g.lastPoints}`] : ['bad', 'Not this time'];
     m.innerHTML = `<div class="result ${cls}"><div class="big">${msg}</div>
-      <p>The answer was <b>${SHAPES[g.answer]} ${esc(g.options[g.answer])}</b></p></div>
+      <p>The answer was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p></div>
       <div class="center muted">You're #${me.rank} with ${me.score} points</div>`;
     return;
   }
   // question
   const answered = g.myChoice != null;
-  m.innerHTML = `<div class="center muted">Question ${g.index + 1} of ${g.total}</div>
-    <div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>
+  const qHtml = isHl
+    ? `<div class="center muted">${esc(g.hl.a.label)}: <b style="color:var(--text)">${fmtNum(g.hl.a.value)}</b>${unit}</div>
+       <div class="center" style="font-weight:800;font-size:20px">Is <span style="color:var(--accent2)">${esc(g.hl.b.label)}</span> higher or lower?</div>`
+    : `<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`;
+  m.innerHTML = `<div class="center muted">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
+    ${qHtml}
     <div class="ptimer"><div id="bar"></div></div>
-    <div class="pans">${g.options.map((o, i) => `<button class="c${i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>
-      <span class="shape">${SHAPES[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
+    <div class="pans" style="${isHl ? 'grid-template-columns:1fr' : ''}">${g.options.map((o, i) => `<button class="c${isHl ? 3 - i * 3 : i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>
+      <span class="shape">${shapes[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
     ${answered ? '<div class="center muted">Answer locked in! Waiting for everyone…</div>' : ''}`;
   m.querySelectorAll('.pans button').forEach((b) => (b.onclick = () => {
     navigator.vibrate?.(30);

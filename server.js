@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
-const { SAMPLE_QUIZ } = require('./quiz-sample');
+const { SAMPLE_QUIZ, SAMPLE_HL } = require('./quiz-sample');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -47,6 +47,7 @@ app.get('/api/qr', async (req, res) => {
 });
 
 app.get('/api/sample-quiz', (_req, res) => res.json(SAMPLE_QUIZ));
+app.get('/api/sample-hl', (_req, res) => res.json(SAMPLE_HL));
 
 const shuffle = (a) => {
   const arr = [...a];
@@ -94,18 +95,20 @@ const leaderboard = (room) =>
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
 // ---------- quiz ----------
-function startQuiz(room, { questions, seconds }) {
+function startQuiz(room, { questions, seconds }, variant = 'quiz') {
   const qs = (Array.isArray(questions) ? questions : [])
     .map((q) => ({
       q: clean(q.q, 300),
       options: (q.options || []).map((o) => clean(o, 120)).filter(Boolean).slice(0, 4),
       answer: Number(q.answer),
+      hl: q.hl,
     }))
     .filter((q) => q.q && q.options.length >= 2 && q.answer >= 0 && q.answer < q.options.length);
   if (!qs.length) return 'No valid questions.';
   for (const p of room.players.values()) p.score = 0;
   room.game = {
     type: 'quiz',
+    variant,
     questions: qs,
     seconds: Math.min(120, Math.max(5, Number(seconds) || 20)),
     index: -1,
@@ -169,6 +172,44 @@ function quizAnswer(room, player, choice) {
   // Everyone online has answered: reveal early.
   const online = [...room.players.values()].filter((p) => p.sockets.size);
   if (online.length && online.every((p) => g.answers.has(p.id))) quizReveal(room);
+}
+
+// ---------- higher or lower ----------
+// A chain of items with numbers. Each round shows the previous item's number
+// and asks whether the next item's number is higher or lower.
+function startHigherLower(room, { items, unit, seconds }) {
+  const list = (Array.isArray(items) ? items : [])
+    .map((i) => ({ label: clean(i.label, 120), value: Number(i.value) }))
+    .filter((i) => i.label && Number.isFinite(i.value));
+  if (list.length < 2) return 'Higher or lower needs at least 2 items.';
+  const u = clean(unit, 30);
+  const questions = [];
+  for (let i = 1; i < list.length; i++) {
+    const a = list[i - 1];
+    const b = list[i];
+    if (a.value === b.value) return `"${a.label}" and "${b.label}" have the same number. Reorder them so neighbours differ.`;
+    questions.push({
+      q: `${b.label}: higher or lower than ${a.label}?`,
+      options: ['Higher', 'Lower'],
+      answer: b.value > a.value ? 0 : 1,
+      hl: { a, b, unit: u },
+    });
+  }
+  return startQuiz(room, { questions, seconds: seconds || 15 }, 'hl');
+}
+
+// ---------- crowd vote ----------
+function startPoll(room, { question, options }) {
+  const opts = (options || []).map((o) => clean(o, 80)).filter(Boolean).slice(0, 6);
+  if (opts.length < 2) return 'A vote needs at least 2 options.';
+  room.game = { type: 'poll', question: clean(question, 200) || 'Crowd vote', options: opts, votes: new Map(), open: true };
+  return null;
+}
+
+function pollCounts(g) {
+  const c = g.options.map(() => 0);
+  for (const v of g.votes.values()) c[v]++;
+  return c;
 }
 
 // ---------- bingo (numbers + music) ----------
@@ -241,15 +282,19 @@ function hostView(room) {
   const g = room.game;
   const base = { role: 'host', code: room.code, players: leaderboard(room) };
   if (!g) return { ...base, game: null };
+  if (g.type === 'poll') {
+    return { ...base, game: { type: 'poll', question: g.question, options: g.options, counts: pollCounts(g), total: g.votes.size, open: g.open } };
+  }
   if (g.type === 'quiz') {
     const q = g.questions[g.index];
     const counts = q ? q.options.map((_, i) => [...g.answers.values()].filter((a) => a.choice === i).length) : [];
     return {
       ...base,
       game: {
-        type: 'quiz', phase: g.phase, index: g.index, total: g.questions.length,
+        type: 'quiz', variant: g.variant, phase: g.phase, index: g.index, total: g.questions.length,
         seconds: g.seconds, deadline: g.deadline, now: Date.now(),
         question: q ? { q: q.q, options: q.options } : null,
+        hl: q?.hl ? hlView(q.hl, g.phase === 'reveal') : null,
         answer: g.phase === 'reveal' ? q.answer : null,
         answeredCount: g.answers.size, counts: g.phase === 'reveal' ? counts : null,
       },
@@ -266,19 +311,27 @@ function hostView(room) {
   };
 }
 
+// The second item's number stays hidden until the reveal.
+const hlView = (hl, reveal) => ({ a: hl.a, b: { label: hl.b.label, value: reveal ? hl.b.value : null }, unit: hl.unit });
+
 function playerView(room, p) {
   const g = room.game;
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
   const base = { role: 'player', code: room.code, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
   if (!g) return { ...base, game: null };
+  if (g.type === 'poll') {
+    const mine = g.votes.get(p.id);
+    return { ...base, game: { type: 'poll', question: g.question, options: g.options, open: g.open, myVote: mine ?? null, counts: g.open ? null : pollCounts(g) } };
+  }
   if (g.type === 'quiz') {
     const q = g.questions[g.index];
     const mine = g.answers.get(p.id);
     return {
       ...base,
       game: {
-        type: 'quiz', phase: g.phase, index: g.index, total: g.questions.length,
+        type: 'quiz', variant: g.variant, phase: g.phase, index: g.index, total: g.questions.length,
         deadline: g.deadline, now: Date.now(), seconds: g.seconds,
+        hl: q?.hl ? hlView(q.hl, g.phase === 'reveal') : null,
         options: q ? q.options : null, question: q ? q.q : null,
         myChoice: mine ? mine.choice : null,
         answer: g.phase === 'reveal' ? q.answer : null,
@@ -349,6 +402,12 @@ io.on('connection', (socket) => {
     if (room.game?.type !== 'quiz') return 'No quiz running';
     quizAdvance(room);
   }));
+  socket.on('host:startHigherLower', host((d) => startHigherLower(room, d)));
+  socket.on('host:startPoll', host((d) => startPoll(room, d)));
+  socket.on('host:pollOpen', host(({ open }) => {
+    if (room.game?.type !== 'poll') return 'No vote running';
+    room.game.open = !!open;
+  }));
   socket.on('host:startBingo', host((d) => startBingo(room, d)));
   socket.on('host:call', host(({ id }) => {
     const g = room.game;
@@ -413,6 +472,15 @@ io.on('connection', (socket) => {
   socket.on('player:answer', ({ choice } = {}) => {
     if (!room || !player) return;
     quizAnswer(room, player, choice);
+    broadcast(room);
+  });
+
+  socket.on('player:vote', ({ choice } = {}) => {
+    const g = room?.game;
+    if (!player || g?.type !== 'poll' || !g.open) return;
+    const c = Number(choice);
+    if (!(c >= 0 && c < g.options.length)) return;
+    g.votes.set(player.id, c); // players can change their mind while the vote is open
     broadcast(room);
   });
 
