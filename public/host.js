@@ -6,11 +6,17 @@ const SHAPES = ['▲', '◆', '●', '■'];
 
 let state = null;
 let joinInfo = null;
-let tab = 'quiz';
+let tab = 'event';
+let weddingPack = null;
+const getPack = async () => (weddingPack ||= await fetch('/api/wedding').then((r) => r.json()));
 let tick = null;
 let clockOffset = 0;
 
 // ---------- connect / resume ----------
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
 function saved() {
   try { return JSON.parse(localStorage.getItem('cg-host') || 'null'); } catch { return null; }
 }
@@ -45,6 +51,7 @@ async function onRoom({ code, hostKey }) {
   $('#sideCode').textContent = code;
   $('#sideUrl').textContent = joinInfo.url.replace(/^https?:\/\//, '');
   remoteUrl = `${joinInfo.url.split('/play')[0]}/host?remote=1&room=${code}&key=${hostKey}`;
+
   render();
 }
 
@@ -105,6 +112,48 @@ $('#startQuiz').onclick = async () => {
   try { localStorage.setItem('cg-quiz', $('#quizText').value); } catch {}
   send('host:startQuiz', { questions, seconds: +$('#quizSecs').value });
 };
+// ---------- event + wedding packs ----------
+const names = () => ({ A: state?.event.a || 'Partner 1', B: state?.event.b || 'Partner 2' });
+const fill = (t) => t.replace(/\{(A|B)\}/g, (_, k) => names()[k]);
+function readEvent() {
+  return { type: $('#evType').value, title: $('#evTitle').value.trim(), a: $('#evA').value.trim(), b: $('#evB').value.trim() };
+}
+$('#evType').onchange = () => applyTheme(readEvent());
+$('#saveEvent').onclick = () => {
+  const ev = readEvent();
+  store.set('cg-event', ev);
+  send('host:event', ev);
+  tab = 'quiz';
+};
+let eventFormFilled = false;
+function eventTitle(ev) {
+  if (ev.title) return ev.title;
+  if (ev.type === 'wedding' && ev.a && ev.b) return `${ev.a} & ${ev.b}`;
+  return '';
+}
+function applyTheme(ev) {
+  document.body.dataset.theme = ev.type === 'wedding' ? 'elegant' : 'club';
+  document.body.classList.toggle('is-wedding', ev.type === 'wedding');
+}
+
+$('#loadCoupleQuiz').onclick = async () => {
+  const p = await getPack();
+  $('#quizText').value = p.coupleQuiz.map((q) => [fill(q.q), ...q.options.map(fill)].join('\n')).join('\n\n');
+  $('#err').textContent = '';
+  alert('Template loaded. Edit the answers with the couple before the night. The * marks the correct answer, so move it to the right line.');
+};
+$('#loadWeddingTrivia').onclick = async () => { $('#quizText').value = quizToText((await getPack()).trivia); };
+$('#loadFloorFillers').onclick = async () => { $('#songText').value = (await getPack()).floorFillers.join('\n'); };
+$('#loadCoupleHl').onclick = async () => {
+  $('#hlText').value = (await getPack()).coupleHigherLower.map((i) => `${fill(i.label)} | ${i.value}`).join('\n');
+  $('#hlUnit').value = '';
+  alert('Template loaded. Replace each 0 with the real number before the night.');
+};
+$('#startMostLikely').onclick = async () => {
+  const { A, B } = names();
+  send('host:startPoll', { series: (await getPack()).mostLikely, options: [A, B] });
+};
+
 $('#loadHl').onclick = async () => {
   const d = await fetch('/api/sample-hl').then((r) => r.json());
   $('#hlText').value = d.items.map((i) => `${i.label} | ${i.value}`).join('\n');
@@ -176,7 +225,7 @@ function primaryAction() {
   if (!g) return null;
   if (g.type === 'quiz' && g.phase !== 'final') return () => send('host:next');
   if (g.type === 'bingo' && g.mode === 'numbers') return () => send('host:call');
-  if (g.type === 'poll') return () => send('host:pollOpen', { open: !g.open });
+  if (g.type === 'poll') return () => (g.open || g.index + 1 >= g.of ? send('host:pollOpen', { open: !g.open }) : send('host:pollNext'));
   return null;
 }
 
@@ -193,7 +242,9 @@ function renderControls() {
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
   if (g.type === 'poll') {
-    html += `<button class="primary" data-act="poll">${g.open ? 'Close voting' : 'Reopen voting'} <span class="muted">(space)</span></button><span class="muted">${g.total} votes</span>`;
+    html += `<button class="primary" data-act="poll">${g.open ? 'Close voting' : 'Reopen voting'} <span class="muted">(space)</span></button>`;
+    if (g.of > 1) html += `<button class="secondary" data-act="pollNext" ${g.index + 1 >= g.of ? 'disabled' : ''}>Next question (${g.index + 1}/${g.of})</button>`;
+    html += `<span class="muted">${g.total} votes</span>`;
   } else if (g.type === 'quiz') {
     const label = { intro: g.variant === 'hl' ? 'Start first round' : 'Start first question', question: 'Reveal answer', reveal: g.index + 1 >= g.total ? 'Final results' : g.variant === 'hl' ? 'Next round' : 'Next question' }[g.phase];
     if (label) html += `<button class="primary" data-act="next">${label} <span class="muted">(space)</span></button>`;
@@ -207,6 +258,7 @@ function renderControls() {
   html += `<button data-act="end">End game</button>`;
   live.innerHTML = html;
   live.querySelector('[data-act=next]')?.addEventListener('click', () => send('host:next'));
+  live.querySelector('[data-act=pollNext]')?.addEventListener('click', () => send('host:pollNext'));
   live.querySelector('[data-act=poll]')?.addEventListener('click', () => send('host:pollOpen', { open: !g.open }));
   live.querySelector('[data-act=call]')?.addEventListener('click', () => send('host:call'));
   live.querySelector('[data-act=pattern]')?.addEventListener('change', (e) => send('host:pattern', { pattern: e.target.value }));
@@ -250,6 +302,7 @@ function renderStage() {
     st.innerHTML = `<div class="lobby">
       <div class="bigqr">${joinInfo?.svg || ''}</div>
       <div>
+        ${eventTitle(state.event) ? `<div class="lobbyevent">${state.event.type === 'wedding' ? 'Welcome to the wedding of' : 'Welcome to'}</div><div class="lobbyname">${esc(eventTitle(state.event))}</div>` : ''}
         <h1 class="lobbytitle">Scan to play!</h1>
         <div class="muted lobbyurl">or go to <b>${esc(joinInfo?.url.replace(/^https?:\/\//, '').replace(/\/play.*/, '') || '')}</b> and enter</div>
         <div class="bigcode">${state.code}</div>
@@ -315,7 +368,7 @@ function renderPoll(st, g) {
     </div>`;
   }).join('');
   st.innerHTML = `<div class="poll">
-    <div class="qhead">${g.open ? 'Vote now on your phone!' : 'Voting closed'} · ${g.total} votes</div>
+    <div class="qhead">${g.of > 1 ? `${g.index + 1} of ${g.of} · ` : ''}${g.open ? 'Vote now on your phone!' : 'Voting closed'} · ${g.total} votes</div>
     <div class="qtext">${esc(g.question)}</div>
     <div class="pollrows">${rows}</div>
     ${!g.open && g.total ? `<div class="winners">The crowd has spoken: ${esc(g.options[win])}!</div>` : ''}
@@ -354,6 +407,20 @@ function renderBingo(st, g) {
 }
 
 function render() {
+  if (state) {
+    applyTheme(state.event);
+    const t = eventTitle(state.event);
+    $('#brand').innerHTML = t ? `<span class="evtitle">${esc(t)}</span>` : 'Crowd<span>Games</span>';
+    if (!eventFormFilled) {
+      eventFormFilled = true;
+      const fresh = !state.event.title && !state.event.a && state.event.type === 'party';
+      const ev = fresh && !isRemote ? store.get('cg-event') || state.event : state.event;
+      // Carry the DJ's last event settings into a fresh room.
+      if (fresh && !isRemote && store.get('cg-event')) send('host:event', ev);
+      $('#evType').value = ev.type; $('#evTitle').value = ev.title; $('#evA').value = ev.a; $('#evB').value = ev.b;
+      applyTheme(ev);
+    }
+  }
   renderSide();
   renderStage();
   renderControls();

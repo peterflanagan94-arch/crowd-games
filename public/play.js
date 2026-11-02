@@ -68,10 +68,14 @@ function render() {
   clearInterval(tick);
   if (!state) return;
   const me = state.me;
+  const ev = state.event || {};
+  document.body.dataset.theme = ev.type === 'wedding' ? 'elegant' : 'club';
+  const title = ev.title || (ev.type === 'wedding' && ev.a && ev.b ? `${ev.a} & ${ev.b}` : '');
+  $('.ptop .brand').innerHTML = title ? `<span class="evtitle">${esc(title)}</span>` : 'Crowd<span>Games</span>';
   $('#who').innerHTML = `<b>${esc(me.name)}</b> · ${state.game?.type === 'quiz' ? `${me.score} pts` : `room ${state.code}`}`;
   const g = state.game;
   if (!g) {
-    $('#main').innerHTML = `<div class="center"><div class="huge">🎧</div><div class="big">You're in!</div>
+    $('#main').innerHTML = `<div class="center"><div class="huge">${ev.type === 'wedding' ? '💍' : '🎧'}</div><div class="big">You're in!</div>
       <p class="muted">Watch the big screen. The DJ will start the next game soon.</p>
       <p class="muted">${state.playerCount} players in the room</p></div>`;
     return;
@@ -125,7 +129,7 @@ function renderQuiz(g, me) {
   const answered = g.myChoice != null;
   const qHtml = isHl
     ? `<div class="center muted">${esc(g.hl.a.label)}: <b style="color:var(--text)">${fmtNum(g.hl.a.value)}</b>${unit}</div>
-       <div class="center" style="font-weight:800;font-size:20px">Is <span style="color:var(--accent2)">${esc(g.hl.b.label)}</span> higher or lower?</div>`
+       <div class="center" style="font-weight:800;font-size:20px">Higher or lower?<br><span style="color:var(--accent2)">${esc(g.hl.b.label)}</span></div>`
     : `<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`;
   m.innerHTML = `<div class="center muted">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
     ${qHtml}

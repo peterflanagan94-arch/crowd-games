@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Crowd Games · Host</title>
   <link rel="icon" href="/icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body class="glow">
@@ -15,7 +17,8 @@
     <div class="bar">
       <strong>DJ controls</strong>
       <span class="tabs" id="tabs">
-        <button data-tab="quiz" class="on">Quiz</button>
+        <button data-tab="event" class="on">Event</button>
+        <button data-tab="quiz">Quiz</button>
         <button data-tab="bingo">Bingo</button>
         <button data-tab="music">Music bingo</button>
         <button data-tab="hl">Higher or lower</button>
@@ -28,12 +31,32 @@
     </div>
 
     <!-- setup panes (shown in lobby) -->
-    <div class="pane" data-pane="quiz">
+    <div class="pane" data-pane="event">
+      <div class="muted">Set up tonight's event. Wedding mode switches to the elegant theme, puts the couple's names on screen and unlocks the wedding games in each tab.</div>
+      <div class="row2">
+        <label>Event type
+          <select id="evType"><option value="wedding">Wedding</option><option value="party">Party / club</option><option value="pub">Pub / bar</option></select>
+        </label>
+        <label>Title on screen (optional) <input id="evTitle" maxlength="60" placeholder="e.g. Sarah & Tom's Wedding, or Friday Quiz at The Crown" /></label>
+      </div>
+      <div class="row2 wedding-only">
+        <label>Partner 1 <input id="evA" maxlength="30" placeholder="e.g. Sarah" /></label>
+        <label>Partner 2 <input id="evB" maxlength="30" placeholder="e.g. Tom" /></label>
+      </div>
+      <button class="primary" id="saveEvent">Save event</button>
+    </div>
+
+    <div class="pane hidden" data-pane="quiz">
       <div class="muted">Paste your own questions, or use the starter quiz. Format: question on one line, then answers on the next lines. Put * in front of the correct one. Leave a blank line between questions.</div>
       <textarea id="quizText" placeholder="Which decade did disco peak in?&#10;1960s&#10;*1970s&#10;1990s&#10;2000s"></textarea>
       <div class="row2">
         <label>Seconds per question <input id="quizSecs" type="number" min="5" max="120" value="20" /></label>
         <label>&nbsp;<button id="loadSample" style="width:100%">Load starter quiz</button></label>
+      </div>
+      <div class="bar wedding-only">
+        <span class="muted">Wedding packs:</span>
+        <button id="loadCoupleQuiz">💍 How well do you know the couple? (template)</button>
+        <button id="loadWeddingTrivia">💐 Wedding trivia</button>
       </div>
       <button class="primary" id="startQuiz">Start quiz</button>
     </div>
@@ -49,6 +72,7 @@
     <div class="pane hidden" data-pane="music">
       <div class="muted">Paste your playlist, one song per line (for example "Artist - Title"). You need 16 songs for a 4x4 card, or 24 or more for a 5x5 card. During the game, tap each song as you play it.</div>
       <textarea id="songText" placeholder="Artist - Title&#10;Artist - Title"></textarea>
+      <div class="bar"><button id="loadFloorFillers">🎉 Load 30 classic floor-fillers</button><span class="muted">Works for weddings, pubs and parties. Edit the list to match your set.</span></div>
       <div class="row2">
         <label>Winning pattern
           <select id="musicPattern"><option value="line">One line</option><option value="two">Two lines</option><option value="full">Full house</option></select>
@@ -66,7 +90,7 @@
         <label>Seconds per round <input id="hlSecs" type="number" min="5" max="120" value="15" /></label>
       </div>
       <div class="row2">
-        <button id="loadHl">Load starter set (years)</button>
+        <span class="bar" style="gap:8px"><button id="loadHl">Load starter set (years)</button><button id="loadCoupleHl" class="wedding-only">💍 Couple template</button></span>
         <button class="primary" id="startHl">Start higher or lower</button>
       </div>
     </div>
@@ -82,6 +106,10 @@
         <button data-preset="tempo">Speed it up?</button>
       </div>
       <button class="primary" id="startPoll">Start vote</button>
+      <div class="wedding-only" style="display:grid;gap:8px;border-top:1px solid #2a2a48;padding-top:10px">
+        <div class="muted"><b>💍 Who's most likely to…?</b> A quick-fire series of votes where the guests pick between the couple. Press space to close each one, then press Next.</div>
+        <button class="secondary" id="startMostLikely">Start "Who's most likely to…?"</button>
+      </div>
     </div>
 
     <!-- live panes -->
@@ -93,7 +121,7 @@
 
     </div>
     <aside class="side">
-      <div class="brand">Crowd<span>Games</span></div>
+      <div class="brand" id="brand">Crowd<span>Games</span></div>
       <div class="qr" id="sideQr"></div>
       <div class="code" id="sideCode">····</div>
       <div class="url muted" id="sideUrl"></div>

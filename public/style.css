@@ -12,6 +12,25 @@
   --radius: 16px;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+/* Wedding theme: still dark so it reads well on projectors, but with gold, blush and serif headings. */
+body[data-theme='elegant'] {
+  --bg: #120e14; --panel: #1e1820; --panel2: #2a2229; --text: #fbf5ef; --muted: #b8a9a3;
+  --accent: #d8b46a; --accent2: #f1c7cf; --good: #8fd3a8;
+  --a0: #c9767f; --a1: #7d8fc4; --a2: #d8b46a; --a3: #7fb59a;
+}
+body[data-theme='elegant'].glow { background: radial-gradient(ellipse at top, #2b1d26 0%, var(--bg) 60%); }
+body[data-theme='elegant'] h1, body[data-theme='elegant'] .qtext, body[data-theme='elegant'] .evtitle,
+body[data-theme='elegant'] .lobbyname, body[data-theme='elegant'] .board h2, body[data-theme='elegant'] .hllabel,
+body[data-theme='elegant'] .big { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-weight: 700; }
+body[data-theme='elegant'] button.primary { color: #1d1408; }
+body[data-theme='elegant'] .ball { background: radial-gradient(circle at 35% 30%, #fff, #f8e7c4 30%, var(--accent) 75%); box-shadow: 0 0 80px #d8b46a66; }
+body[data-theme='elegant'] .card .cell.marked { color: #1d1408; }
+body:not(.is-wedding) .wedding-only { display: none !important; }
+.evtitle { color: var(--accent); }
+.lobbyevent { color: var(--muted); font-size: max(16px, 3.4cqh); }
+.lobbyname { font-size: min(9cqh, 6cqw); color: var(--accent2); line-height: 1.1; margin-bottom: 2cqh; }
+.picked { outline: 5px solid #fff; }
+.faded { opacity: .35; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
 body { -webkit-tap-highlight-color: transparent; }
@@ -113,7 +132,7 @@ h1, h2, h3 { margin: 0 0 .4em; }
 .pollbar { position: absolute; inset: 0 auto 0 0; opacity: .85; transition: width .5s ease; }
 .polllabel, .pollpct { position: relative; }
 /* controls drawer */
-.controls { background: #12121f; border-top: 1px solid #2a2a48; padding: 12px 20px; max-height: 55vh; overflow: auto; flex-shrink: 0; }
+.controls { background: var(--panel); border-top: 1px solid var(--panel2); padding: 12px 20px; max-height: 55vh; overflow: auto; flex-shrink: 0; }
 .controls.collapsed .pane { display: none !important; }
 .controls .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .controls .bar select, .controls .bar input { width: auto; }

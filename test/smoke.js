@@ -96,6 +96,19 @@ server.listen(0, async () => {
   await wait(150);
   assert.deepEqual(latest.get('Ana').game.counts, [0, 1, 1]);
 
+  // Wedding event + "who's most likely to" series
+  await call(host, 'host:event', { type: 'wedding', a: 'Sarah', b: 'Tom' });
+  await wait(100);
+  assert.equal(latest.get('Ana').event.type, 'wedding');
+  await call(host, 'host:startPoll', { series: ['Q1', 'Q2'], options: ['Sarah', 'Tom'] });
+  players[0].emit('player:vote', { choice: 0 });
+  await wait(100);
+  assert.ok((await call(host, 'host:pollNext')).ok);
+  await wait(100);
+  assert.equal(latest.get('Ana').game.question, 'Q2');
+  assert.equal(latest.get('Ana').game.myVote, null, 'votes reset for next question');
+  assert.ok((await call(host, 'host:pollNext')).error, 'end of series');
+
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());
   server.close(); process.exit(0);

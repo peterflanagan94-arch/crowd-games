@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
-const { SAMPLE_QUIZ, SAMPLE_HL } = require('./quiz-sample');
+const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING } = require('./quiz-sample');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -48,6 +48,7 @@ app.get('/api/qr', async (req, res) => {
 
 app.get('/api/sample-quiz', (_req, res) => res.json(SAMPLE_QUIZ));
 app.get('/api/sample-hl', (_req, res) => res.json(SAMPLE_HL));
+app.get('/api/wedding', (_req, res) => res.json(WEDDING));
 
 const shuffle = (a) => {
   const arr = [...a];
@@ -77,6 +78,8 @@ function createRoom() {
     hostSockets: new Set(),
     players: new Map(), // playerId -> { id, name, score, sockets:Set, card?, answer? }
     game: null,
+    // type: wedding | party | pub. Names personalise the wedding games and screens.
+    event: { type: 'party', title: '', a: '', b: '' },
     touched: Date.now(),
   };
   rooms.set(room.code, room);
@@ -199,10 +202,24 @@ function startHigherLower(room, { items, unit, seconds }) {
 }
 
 // ---------- crowd vote ----------
-function startPoll(room, { question, options }) {
+// A vote can be a single question or a series sharing the same options
+// (e.g. "Who's most likely to…" with the couple's names as the two options).
+function startPoll(room, { question, options, series }) {
   const opts = (options || []).map((o) => clean(o, 80)).filter(Boolean).slice(0, 6);
   if (opts.length < 2) return 'A vote needs at least 2 options.';
-  room.game = { type: 'poll', question: clean(question, 200) || 'Crowd vote', options: opts, votes: new Map(), open: true };
+  const qs = (Array.isArray(series) && series.length ? series : [question]).map((q) => clean(q, 200)).filter(Boolean);
+  if (!qs.length) qs.push('Crowd vote');
+  room.game = { type: 'poll', series: qs, index: 0, question: qs[0], options: opts, votes: new Map(), open: true };
+  return null;
+}
+
+function pollNext(room) {
+  const g = room.game;
+  if (g.index + 1 >= g.series.length) return 'That was the last question.';
+  g.index++;
+  g.question = g.series[g.index];
+  g.votes = new Map();
+  g.open = true;
   return null;
 }
 
@@ -280,10 +297,10 @@ function checkClaim(room, p) {
 // ---------- state views ----------
 function hostView(room) {
   const g = room.game;
-  const base = { role: 'host', code: room.code, players: leaderboard(room) };
+  const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room) };
   if (!g) return { ...base, game: null };
   if (g.type === 'poll') {
-    return { ...base, game: { type: 'poll', question: g.question, options: g.options, counts: pollCounts(g), total: g.votes.size, open: g.open } };
+    return { ...base, game: { type: 'poll', question: g.question, options: g.options, counts: pollCounts(g), total: g.votes.size, open: g.open, index: g.index, of: g.series.length } };
   }
   if (g.type === 'quiz') {
     const q = g.questions[g.index];
@@ -317,7 +334,7 @@ const hlView = (hl, reveal) => ({ a: hl.a, b: { label: hl.b.label, value: reveal
 function playerView(room, p) {
   const g = room.game;
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
-  const base = { role: 'player', code: room.code, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
+  const base = { role: 'player', code: room.code, event: room.event, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
   if (!g) return { ...base, game: null };
   if (g.type === 'poll') {
     const mine = g.votes.get(p.id);
@@ -404,6 +421,14 @@ io.on('connection', (socket) => {
   }));
   socket.on('host:startHigherLower', host((d) => startHigherLower(room, d)));
   socket.on('host:startPoll', host((d) => startPoll(room, d)));
+  socket.on('host:pollNext', host(() => {
+    if (room.game?.type !== 'poll') return 'No vote running';
+    return pollNext(room);
+  }));
+  socket.on('host:event', host((d) => {
+    const type = ['wedding', 'party', 'pub'].includes(d.type) ? d.type : 'party';
+    room.event = { type, title: clean(d.title, 60), a: clean(d.a, 30), b: clean(d.b, 30) };
+  }));
   socket.on('host:pollOpen', host(({ open }) => {
     if (room.game?.type !== 'poll') return 'No vote running';
     room.game.open = !!open;
