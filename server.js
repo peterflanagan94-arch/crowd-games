@@ -155,6 +155,7 @@ const clean = (s, n = 200) => String(s ?? '').replace(/[\u0000-\u001f]/g, '').tr
 
 // ---------- rooms ----------
 const rooms = new Map();
+const requests = require('./requests');
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O to avoid confusion
 
 function newCode() {
@@ -176,6 +177,7 @@ function createRoom() {
     game: null,
     // type: wedding | party | pub. Names personalise the wedding games and screens.
     event: { type: 'party', title: '', a: '', b: '' },
+    requests: requests.newRequests(), // song request board, runs alongside the games
     touched: Date.now(),
   };
   rooms.set(room.code, room);
@@ -545,8 +547,9 @@ function checkClaim(room, p) {
 // ---------- state views ----------
 function hostView(room) {
   const g = room.game;
-  const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room), pickedTonight: room.pickedTonight.size };
+  const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room), pickedTonight: room.pickedTonight.size, requests: requests.hostRequests(room.requests) };
   if (!g) return { ...base, game: null };
+  if (g.type === 'requests') return { ...base, game: { type: 'requests' } };
   if (g.type === 'challenge') {
     const nameOf = (id) => room.players.get(id)?.name || '?';
     return {
@@ -612,8 +615,9 @@ const hlView = (hl, reveal, outcome) =>
 function playerView(room, p) {
   const g = room.game;
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
-  const base = { role: 'player', code: room.code, event: room.event, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
+  const base = { role: 'player', code: room.code, event: room.event, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size, requests: requests.playerRequests(room.requests, p.id) };
   if (!g) return { ...base, game: null };
+  if (g.type === 'requests') return { ...base, game: { type: 'requests' } };
   if (g.type === 'challenge') {
     const shown = g.phase === 'picked';
     return {
@@ -886,6 +890,25 @@ io.on('connection', (socket) => {
     }
     g.claimFlash = { name: player.name, valid, at: Date.now() };
     ack(cb, { ok: true, valid });
+    broadcast(room);
+  });
+
+  // ---------- song requests ----------
+  socket.on('host:showRequests', host(() => {
+    if (room.game?.timer) clearTimeout(room.game.timer);
+    room.game = { type: 'requests' };
+  }));
+  socket.on('host:requestStatus', host(({ id, status }) => requests.setStatus(room.requests, id, status)));
+  socket.on('host:requestSettings', host((d) => requests.settings(room.requests, d)));
+  socket.on('player:request', (d = {}, cb) => {
+    if (!room || !player) return ack(cb, { error: 'Join the room first.' });
+    const r = requests.addRequest(room.requests, player, d || {});
+    ack(cb, r);
+    if (r.ok) broadcast(room);
+  });
+  socket.on('player:requestVote', ({ id, on } = {}) => {
+    if (!room || !player) return;
+    requests.vote(room.requests, player, id, !!on);
     broadcast(room);
   });
 

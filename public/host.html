@@ -27,9 +27,11 @@
         <button data-tab="hl">Higher or lower</button>
         <button data-tab="poll">Crowd vote</button>
         <button data-tab="challenge">🎲 Volunteer draw</button>
+        <button data-tab="requests">🎵 Requests</button>
       </span>
       <span id="liveBar" class="bar"></span>
       <span class="err" id="err"></span>
+      <button id="reqBtn" title="Song requests from the crowd">🎵 Requests</button>
       <button id="remoteBtn" title="Run the controls from your phone">📱 Phone remote</button>
       <button class="toggle" id="toggle">Hide ▾</button>
     </div>
@@ -220,6 +222,17 @@
       <div class="bar" id="chChips"></div>
       <label><input type="checkbox" id="chExclude" checked /> Give everyone a turn: skip people already picked tonight (unless there's nobody else). <span class="muted" id="chTonight"></span></label>
       <div class="bar"><button class="primary" id="startChallenge">Open sign-ups</button><button id="chReset">Reset tonight's picks</button></div>
+    </div>
+
+    <div class="pane hidden" data-pane="requests">
+      <div class="muted"><b>Song requests:</b> guests request songs from their phones and upvote each other's, so the most wanted songs rise to the top. It runs all night alongside the other games. Show the board on the big screen any time, or keep it to yourself here.</div>
+      <div class="bar" id="reqSettings">
+        <label class="inline"><input type="checkbox" id="reqOpen" /> Taking requests</label>
+        <label>Songs waiting per guest <select id="reqLimit"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="0">No limit</option></select></label>
+        <button class="secondary" id="reqShow">📺 Show board on big screen</button>
+        <button id="reqClear" class="danger-ghost">Clear the board</button>
+      </div>
+      <div id="reqDj"></div>
     </div>
 
     <!-- live panes -->

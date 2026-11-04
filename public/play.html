@@ -13,8 +13,19 @@
 </head>
 <body class="glow">
   <div class="player">
-    <div class="ptop"><span class="brand">Crowd <span>QR</span> Games</span><span id="who"></span></div>
+    <div class="ptop"><span class="brand">Crowd <span>QR</span> Games</span><span class="ptopr"><button class="reqfab" id="reqFab" hidden>🎵 Request</button><span id="who"></span></span></div>
     <div class="pmain" id="main"></div>
+    <section class="reqpanel" id="reqPanel" hidden>
+      <div class="reqhead"><b>🎵 Request a song</b><button type="button" id="reqClose" aria-label="Close">✕</button></div>
+      <form id="reqForm" class="reqform" autocomplete="off">
+        <input name="title" placeholder="Song title" maxlength="80" required />
+        <input name="artist" placeholder="Artist (optional)" maxlength="60" />
+        <button class="primary">Request it</button>
+      </form>
+      <div class="muted reqinfo" id="reqInfo"></div>
+      <div class="reqnowp" id="reqNow" hidden></div>
+      <div class="reqplist" id="reqList"></div>
+    </section>
   </div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/play.js"></script>

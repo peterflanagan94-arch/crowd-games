@@ -83,6 +83,71 @@ $('#remoteBtn').onclick = () => {
 };
 if (isRemote) $('#remoteBtn').remove();
 
+// ---------- song requests ----------
+let reqPanel = false; // DJ request list open while a game is running
+$('#reqBtn').onclick = () => {
+  if (!state?.game) tab = tab === 'requests' ? 'event' : 'requests';
+  else reqPanel = !reqPanel;
+  $('#controls').classList.remove('collapsed');
+  $('#toggle').textContent = 'Hide ▾';
+  render();
+};
+$('#reqOpen').onchange = (e) => send('host:requestSettings', { open: e.target.checked });
+$('#reqLimit').onchange = (e) => send('host:requestSettings', { limit: Number(e.target.value) });
+$('#reqShow').onclick = () => {
+  if (state?.game && state.game.type !== 'requests' && !confirm('End the current game and show the request board?')) return;
+  send('host:showRequests');
+};
+$('#reqClear').onclick = () => confirm('Clear every request off the board, including played songs?') && send('host:requestSettings', { clear: true });
+$('#reqDj').onclick = (e) => {
+  const b = e.target.closest('[data-req]');
+  if (!b) return;
+  if (b.dataset.st === 'removed' && !confirm(`Remove "${b.dataset.title}" from the board?`)) return;
+  send('host:requestStatus', { id: b.dataset.req, status: b.dataset.st });
+};
+const songLine = (r) => `<span><b>${esc(r.title)}</b>${r.artist ? ` <span class="muted">· ${esc(r.artist)}</span>` : ''}</span>`;
+function renderReqDj() {
+  const rq = state?.requests;
+  if (!rq) return;
+  $('#reqOpen').checked = rq.open;
+  $('#reqLimit').value = String(rq.limit);
+  $('#reqShow').disabled = state.game?.type === 'requests';
+  const btn = (r, st, label, cls = '') => `<button class="${cls}" data-req="${r.id}" data-st="${st}" data-title="${esc(r.title)}">${label}</button>`;
+  const row = (r, i, acts) => `<div class="reqrow"><span class="reqrank">${i + 1}</span><span class="reqvotes">▲ ${r.votes}</span>
+    <span class="reqsong">${songLine(r)}<small class="muted">from ${esc(r.byName)}</small></span><span class="reqacts">${acts}</span></div>`;
+  const playing = rq.playing
+    ? `<div class="reqnow"><span>🎶 Now playing: ${songLine(rq.playing)} <small class="muted">from ${esc(rq.playing.byName)}</small></span>
+        <span class="reqacts">${btn(rq.playing, 'played', '✓ Done', 'primary')}${btn(rq.playing, 'queued', '↩ Back to list')}</span></div>`
+    : '';
+  const queue = rq.queue.length
+    ? rq.queue.map((r, i) => row(r, i, btn(r, 'playing', '▶ Playing', 'secondary') + btn(r, 'played', '✓ Played') + btn(r, 'removed', '✕', 'danger-ghost'))).join('')
+    : `<div class="muted">${rq.open ? 'No requests yet. Guests can request from the phone screen once they join.' : 'Requests are closed. Tick "Taking requests" to open them.'}</div>`;
+  const played = rq.played.length
+    ? `<details class="reqplayed" data-k="played"><summary class="muted">Played tonight (${rq.played.length})</summary>${rq.played.map((r) => `<div class="reqrow done"><span class="reqvotes">▲ ${r.votes}</span><span class="reqsong">${songLine(r)}<small class="muted">from ${esc(r.byName)}</small></span><span class="reqacts">${btn(r, 'queued', '↩ Undo')}</span></div>`).join('')}</details>`
+    : '';
+  const removed = rq.removed.length
+    ? `<details class="reqplayed" data-k="removed"><summary class="muted">Removed (${rq.removed.length})</summary>${rq.removed.map((r) => `<div class="reqrow done"><span class="reqsong">${songLine(r)}<small class="muted">from ${esc(r.byName)}</small></span><span class="reqacts">${btn(r, 'queued', '↩ Put back')}</span></div>`).join('')}</details>`
+    : '';
+  const was = new Set([...$('#reqDj').querySelectorAll('details[open]')].map((d) => d.dataset.k));
+  $('#reqDj').innerHTML = `${playing}<div class="reqlist">${queue}</div>${played}${removed}`;
+  $('#reqDj').querySelectorAll('details').forEach((d) => { d.open = was.has(d.dataset.k); });
+}
+
+function renderRequestBoard(st) {
+  const rq = state.requests;
+  const top = rq.queue.slice(0, 10);
+  const rows = top.map((r, i) => `<div class="reqboardrow"><span class="reqrank">${i + 1}</span>
+      <span class="reqsong"><b>${esc(r.title)}</b>${r.artist ? `<span>${esc(r.artist)}</span>` : ''}</span>
+      <span class="reqvotes">▲ ${r.votes}</span></div>`).join('');
+  st.innerHTML = `<div class="reqboard">
+    <div class="qtext">🎵 Song requests</div>
+    <div class="qhead">${rq.open ? 'Scan the QR code to request a song, and vote for the ones you want to hear' : 'Requests are closed for now'}</div>
+    ${rq.playing ? `<div class="reqboardnow">🎶 Now playing: <b>${esc(rq.playing.title)}</b>${rq.playing.artist ? ` · ${esc(rq.playing.artist)}` : ''} <small>requested by ${esc(rq.playing.byName)}</small></div>` : ''}
+    <div class="reqboardlist">${rows || `<div class="muted center qhead">${rq.open ? 'No requests yet. Be the first!' : ''}</div>`}</div>
+    ${rq.queue.length > 10 ? `<div class="qhead">+ ${rq.queue.length - 10} more on your phone</div>` : ''}
+  </div>`;
+}
+
 $('#tabs').onclick = (e) => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -368,12 +433,20 @@ function renderControls() {
     const name = p.dataset.pane;
     const show = g
       ? (name === 'liveMusic' && g.type === 'bingo' && g.mode === 'music') || (name === 'liveCouple' && g.type === 'couple' && g.phase === 'answering')
+        || (name === 'requests' && (reqPanel || g.type === 'requests'))
       : name === tab;
     p.classList.toggle('hidden', !show);
   });
+  const nReq = state?.requests?.queue.length || 0;
+  $('#reqBtn').textContent = `🎵 Requests${nReq ? ` (${nReq})` : ''}`;
+  $('#reqBtn').classList.toggle('on', !!g && (reqPanel || g.type === 'requests'));
+  $('#reqBtn').hidden = !g; // in the lobby it's a tab like the games
+  renderReqDj();
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
-  if (g.type === 'challenge') {
+  if (g.type === 'requests') {
+    html += `<span class="muted">Showing the request board · ${nReq} waiting</span>`;
+  } else if (g.type === 'challenge') {
     if (g.phase === 'signup') html += `<button class="primary" data-act="draw">🥁 Draw ${g.count} <span class="muted">(space)</span></button>`;
     if (g.phase === 'picked') {
       html += `<button data-act="drawOne">Pick one more</button>`;
@@ -467,11 +540,13 @@ function renderStage() {
         <h1 class="lobbytitle">Scan to play!</h1>
         <div class="muted lobbyurl">or go to <b>${esc(joinInfo?.url.replace(/^https?:\/\//, '').replace(/\/play.*/, '') || '')}</b> and enter</div>
         <div class="bigcode">${state.code}</div>
+        ${state.requests?.open ? '<div class="muted lobbyreq">🎵 Song requests are open: request and vote on your phone</div>' : ''}
         <div class="names">${(state.players || []).map((p) => `<span>${esc(p.name)}</span>`).join('') || '<span class="muted">Waiting for players…</span>'}</div>
       </div>
     </div>`;
     return;
   }
+  if (g.type === 'requests') return renderRequestBoard(st);
   if (g.type === 'challenge') return renderChallenge(st, g);
   if (g.type === 'couple') return renderCouple(st, g);
   if (g.type === 'poll') return renderPoll(st, g);

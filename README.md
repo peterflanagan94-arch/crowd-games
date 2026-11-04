@@ -26,6 +26,8 @@ Wedding packs:
 - **Higher or lower:** play with a freshly shuffled **deck of cards** (the default) or your own list of numbers. In card mode, aces can be set to *high or low* (an Ace counts whichever way helps the guest), *always high* or *always low*, and a pair scores nothing. Scoring works the same as the quiz.
 - **Crowd vote:** a live poll on the big screen, for things like "What should I play next?". Guests can change their vote until you close it.
 
+- **Song requests:** runs all night alongside the games. Guests request songs from their phones (a "🎵 Request" button sits at the top of the phone screen during games) and upvote each other's, so the most wanted songs rise to the top. Duplicate requests turn into a vote. The DJ sees the ranked list under **🎵 Requests**, marks songs as playing or played, removes ones they won't play, and can limit how many songs each guest has waiting (default 3). Guests get a buzz when their song comes on. **Show board on big screen** puts the top 10 and the now playing song on the main display.
+
 - **Volunteer draw:** made for between courses or between sets. Announce a challenge (hula hoop-off, fancy-dress karaoke, dance-off…). Guests who want to take part tap "I'm in!", then the DJ draws people at random with a drumroll on screen, and picked guests' phones buzz. It skips people already picked tonight so everyone gets a turn, lets you pick one more if someone's missing, and can hand over to a crowd vote for the winner.
 
 Winning patterns: one line, two lines or full house. You can change the pattern mid-game, for example going from line to full house.

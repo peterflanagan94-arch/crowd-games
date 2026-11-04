@@ -234,6 +234,36 @@ server.listen(0, async () => {
   await wait(100);
   assert.ok(latest.get('Ana').game.cat, 'category shown on phones');
 
+  // Song requests: dedupe merges into an upvote, ranking by votes, per-guest limit, DJ statuses.
+  const rq = () => latest.get('Ana').requests;
+  assert.ok((await call(players[0], 'player:request', { title: 'Mr Brightside', artist: 'The Killers' })).ok);
+  const dup = await call(players[1], 'player:request', { title: 'mr. brightside', artist: 'Killers' });
+  assert.ok(dup.ok && dup.merged, 'duplicate request becomes a vote');
+  assert.ok((await call(players[1], 'player:request', { title: 'Dancing Queen' })).ok);
+  assert.ok((await call(players[1], 'player:request', { title: 'Another One' })).error, 'cooldown between requests');
+  await wait(100);
+  assert.deepEqual(rq().queue.map((r) => [r.title, r.votes]), [['Mr Brightside', 2], ['Dancing Queen', 1]]);
+  const dq = rq().queue[1];
+  players[0].emit('player:requestVote', { id: dq.id, on: true });
+  await wait(100);
+  assert.equal(rq().queue[1].voted, true);
+  await call(host, 'host:requestSettings', { limit: 1 });
+  rooms.get(code).players.get([...rooms.get(code).players.keys()][0]).lastRequest = 0;
+  assert.match((await call(players[0], 'player:request', { title: 'Song 2' })).error, /waiting/, 'per-guest limit');
+  const mb = rq().queue[0];
+  assert.ok((await call(host, 'host:requestStatus', { id: mb.id, status: 'playing' })).ok);
+  await wait(100);
+  assert.equal(rq().playing.title, 'Mr Brightside');
+  assert.equal(latest.get('Ben').requests.myPlayingId, mb.id, 'voter gets told it is playing');
+  await call(host, 'host:requestStatus', { id: dq.id, status: 'playing' });
+  assert.equal(rooms.get(code).requests.list.find((r) => r.id === mb.id).status, 'played', 'previous song marked played');
+  assert.match((await call(players[1], 'player:request', { title: 'Mr Brightside' })).error, /played/);
+  await call(host, 'host:requestSettings', { open: false });
+  assert.ok((await call(players[1], 'player:request', { title: 'Wonderwall' })).error, 'closed');
+  assert.ok((await call(host, 'host:showRequests')).ok);
+  await wait(100);
+  assert.equal(latest.get('Ana').game.type, 'requests');
+
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());
   server.close(); process.exit(0);
