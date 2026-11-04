@@ -32,7 +32,9 @@
     const row = (e, i, now) => `<div class="kq-row ${now ? 'now' : ''}" data-id="${e.id}">
       <span class="kq-n">${now ? '🎤' : i + 1}</span>
       <span class="kq-who"><b>${esc(e.singer)}</b><small>${esc(e.song)}</small></span>
-      <span class="kq-yt">${e.yt ? '<span class="ok" title="Lyrics video linked">▶ video</span>' : `<a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find video</a>`}
+      <span class="kq-yt">${e.yt && e.ytStatus === 'blocked' ? `<span class="bad" title="The channel doesn't allow this video to play on other sites">⚠ won't play here</span> <a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find another</a>`
+          : e.yt && e.ytStatus === 'missing' ? `<span class="bad">⚠ video not found</span> <a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find another</a>`
+          : e.yt ? `<span class="ok" title="Lyrics video linked">▶ video${e.ytStatus === 'ok' ? ' ✓' : ''}</span>` : `<a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find video</a>`}
         <input class="kq-link" placeholder="${e.yt ? 'Change link' : 'Paste YouTube link'}" /></span>
       ${now ? '' : `<span class="kq-btns"><button data-k="top" title="Move to the front">⤒</button><button data-k="up" title="Up">▲</button><button data-k="down" title="Down">▼</button><button data-k="remove" title="Remove">✕</button></span>`}
     </div>`;

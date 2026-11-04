@@ -941,7 +941,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host:startKaraoke', host((d) => karaoke.startKaraoke(room, d)));
-  socket.on('host:karaoke', host(({ act, ...d }) => karaoke.hostAction(room, act, d)));
+  socket.on('host:karaoke', host(({ act, ...d }) => {
+    const err = karaoke.hostAction(room, act, d);
+    if (!err && (act === 'add' || act === 'link')) { const r = room; karaoke.checkLinks(r, () => broadcast(r)); }
+    return err;
+  }));
   socket.on('player:karaokeSignUp', (d, cb) => {
     if (!room || !player) return;
     const err = karaoke.signUp(room, player, d || {});
