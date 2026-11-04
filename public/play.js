@@ -65,6 +65,7 @@ socket.on('connect', () => {
 });
 socket.on('kicked', () => {
   store.set(sessKey, null); session = null; state = null;
+  $('#reqPanel').hidden = true; $('#reqFab').hidden = true;
   $('#main').innerHTML = '<div class="center big">You were removed from the game.</div>';
 });
 socket.on('disconnect', () => toast('Reconnecting…'));
@@ -74,8 +75,67 @@ socket.on('state', (s) => {
   render();
 });
 
+// ---------- song requests ----------
+let reqSheet = false; // request panel opened over a running game
+let lastPlaying = null;
+$('#reqFab').onclick = () => { reqSheet = true; renderRequests(); };
+$('#reqClose').onclick = () => { reqSheet = false; renderRequests(); };
+$('#reqForm').onsubmit = (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const btn = f.querySelector('button');
+  btn.disabled = true;
+  socket.emit('player:request', { title: f.title.value, artist: f.artist.value }, (r) => {
+    btn.disabled = false;
+    if (r?.error) return toast(r.error);
+    navigator.vibrate?.(20);
+    toast(r.merged ? "It's already on the list, so we added your vote!" : 'Requested! Get your friends to vote for it.');
+    f.reset();
+  });
+};
+$('#reqList').onclick = (e) => {
+  const b = e.target.closest('[data-vote]');
+  if (!b) return;
+  navigator.vibrate?.(15);
+  socket.emit('player:requestVote', { id: b.dataset.vote, on: b.dataset.on === '1' });
+};
+function renderRequests() {
+  const rq = state?.requests;
+  const panel = $('#reqPanel');
+  const fab = $('#reqFab');
+  const g = state?.game;
+  if (!rq || state.role !== 'player') { panel.hidden = true; fab.hidden = true; return; }
+  // Tell guests when their song (or one they voted for) comes on.
+  if (rq.myPlayingId && rq.myPlayingId !== lastPlaying) {
+    navigator.vibrate?.([80, 60, 80]);
+    toast(rq.playing?.mine ? '🎶 Your request is playing now!' : '🎶 A song you voted for is playing!');
+  }
+  lastPlaying = rq.myPlayingId;
+  const inline = !g || g.type === 'requests';
+  const show = inline ? rq.open || rq.queue.length || rq.playing : reqSheet;
+  panel.hidden = !show;
+  panel.classList.toggle('sheet', !inline);
+  document.querySelector('.player').classList.toggle('withreq', !!(inline && show));
+  fab.hidden = inline || reqSheet || !rq.open;
+  $('#reqClose').hidden = inline;
+  $('#reqForm').hidden = !rq.open;
+  $('#reqInfo').textContent = !rq.open
+    ? 'Requests are closed right now, but you can still vote.'
+    : rq.limit && rq.myWaiting >= rq.limit
+      ? `You've got ${rq.myWaiting} waiting. Upvote others until one gets played.`
+      : 'Tap ▲ on the songs you want to hear. The most votes rise to the top.';
+  $('#reqNow').hidden = !rq.playing;
+  if (rq.playing) $('#reqNow').innerHTML = `🎶 Now playing: <b>${esc(rq.playing.title)}</b>${rq.playing.artist ? ` · ${esc(rq.playing.artist)}` : ''}`;
+  $('#reqList').innerHTML = rq.queue.map((r, i) => `<div class="reqp ${r.mine ? 'mine' : ''}">
+      <span class="reqrank">${i + 1}</span>
+      <span class="reqsong"><b>${esc(r.title)}</b>${r.artist ? `<span>${esc(r.artist)}</span>` : ''}<small>${r.mine ? 'Your request' : `from ${esc(r.byName)}`}</small></span>
+      <button class="reqvote ${r.voted ? 'on' : ''}" data-vote="${r.id}" data-on="${r.voted ? 0 : 1}" ${r.mine ? 'disabled' : ''} aria-label="Vote">▲<b>${r.votes}</b></button>
+    </div>`).join('') || `<div class="muted center">${rq.open ? 'No requests yet. Be the first!' : ''}</div>`;
+}
+
 function render() {
   clearInterval(tick);
+  renderRequests();
   if (!state) return;
   const me = state.me;
   const ev = state.event || {};
@@ -89,6 +149,10 @@ function render() {
     $('#main').innerHTML = `<div class="center"><div class="huge">${ev.type === 'wedding' ? '💍' : '🎧'}</div><div class="big">You're in!</div>
       <p class="muted">Watch the big screen. The DJ will start the next game soon.</p>
       <p class="muted">${state.playerCount} players in the room</p></div>`;
+    return;
+  }
+  if (g.type === 'requests') {
+    $('#main').innerHTML = '<div class="center muted">The request board is on the big screen</div>';
     return;
   }
   if (g.type === 'challenge') return renderChallenge(g);
