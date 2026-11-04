@@ -194,9 +194,48 @@ $('#startEmoji').onclick = async () => {
 // ---------- event + wedding packs ----------
 const names = () => ({ A: state?.event.a || 'Partner 1', B: state?.event.b || 'Partner 2' });
 const fill = (t) => t.replace(/\{(A|B)\}/g, (_, k) => names()[k]);
+let accentVal = '';
 function readEvent() {
-  return { type: $('#evType').value, title: $('#evTitle').value.trim(), a: $('#evA').value.trim(), b: $('#evB').value.trim() };
+  return { type: $('#evType').value, title: $('#evTitle').value.trim(), a: $('#evA').value.trim(), b: $('#evB').value.trim(), accent: accentVal };
 }
+$('#evAccent').oninput = (e) => { accentVal = e.target.value; applyTheme(readEvent()); };
+$('#accentReset').onclick = () => { accentVal = ''; applyTheme(readEvent()); $('#evAccent').value = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#ff3d9a'; };
+
+// Logo: shrunk in the browser to keep it light, kept in this browser for the next event.
+function showLogoBox(src) {
+  $('#logoBox').innerHTML = src ? `<img src="${esc(src)}" alt="Your logo" />` : '<span class="muted">No logo</span>';
+  $('#logoClear').hidden = !src;
+}
+function shrinkImage(file, max) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth || max, img.naturalHeight || max));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round((img.naturalWidth || max) * k));
+      c.height = Math.max(1, Math.round((img.naturalHeight || max) * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error("That file doesn't look like an image."));
+    img.src = URL.createObjectURL(file);
+  });
+}
+$('#logoPick').onclick = () => $('#logoIn').click();
+$('#logoIn').onchange = async (e) => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    let data = await shrinkImage(f, 600);
+    if (data.length > 500e3) data = await shrinkImage(f, 360);
+    store.set('cg-logo', data);
+    showLogoBox(data);
+    send('host:logo', { data });
+  } catch (err) { $('#err').textContent = err.message; }
+};
+$('#logoClear').onclick = () => { store.set('cg-logo', null); showLogoBox(null); send('host:logo', { data: null }); };
 $('#evType').onchange = () => applyTheme(readEvent());
 $('#saveEvent').onclick = () => {
   const ev = readEvent();
@@ -212,6 +251,8 @@ function eventTitle(ev) {
 }
 function applyTheme(ev) {
   document.body.dataset.theme = ev.type === 'wedding' ? 'elegant' : 'club';
+  if (ev.accent) document.body.style.setProperty('--accent', ev.accent);
+  else document.body.style.removeProperty('--accent');
   document.body.classList.toggle('is-wedding', ev.type === 'wedding');
 }
 
@@ -224,6 +265,37 @@ fetch('/api/challenges').then((r) => r.json()).then((list) => {
 $('#startChallenge').onclick = () => send('host:startChallenge', { title: $('#chTitle').value, count: +$('#chCount').value, exclude: $('#chExclude').checked });
 $('#chReset').onclick = () => confirm('Forget who has been picked tonight?') && send('host:resetPicked');
 let drawAnim = null;
+
+// ---------- raffle & wheel ----------
+let rfMode = 'raffle';
+const WHEEL_IDEAS = {
+  '🎤 Forfeits': ['Sing a chorus', 'Dance for 10 seconds', 'Do an impression', 'Tell a joke', 'Air guitar solo', 'Free pass!', 'Pick someone to dance', 'Lead a conga'],
+  '🍹 Drinks': ['Shot!', 'Water break', 'Free drink', 'Cocktail of your choice', 'Buy the next round', 'Pick who drinks', 'Free pass!', 'Mocktail'],
+  '🎵 Next genre': ['80s', '90s', 'Disco', 'Rock', 'Pop hits', 'Dance anthems', 'Cheesy classic', 'DJ\'s choice'],
+  '🎁 Prizes': ['Free drink', 'Spot prize', 'Bar tab', 'Mystery prize', 'Spin again', 'Better luck next time', 'Choose the next song', 'Bonus raffle ticket'],
+};
+$('#rfIdeas').innerHTML = '<span class="muted">Ideas:</span>' + Object.keys(WHEEL_IDEAS).map((k) => `<button data-idea="${esc(k)}">${esc(k)}</button>`).join('');
+$('#rfIdeas').querySelectorAll('[data-idea]').forEach((b) => (b.onclick = () => { $('#rfSegs').value = WHEEL_IDEAS[b.dataset.idea].join('\n'); }));
+$('#rfMode').querySelectorAll('button').forEach((b) => (b.onclick = () => {
+  rfMode = b.dataset.mode;
+  $('#rfMode').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelector('.rf-raffle').hidden = rfMode !== 'raffle';
+  document.querySelector('.rf-wheel').hidden = rfMode !== 'wheel';
+}));
+$('#startRaffle').onclick = () => {
+  const d = { mode: rfMode, title: $('#rfTitle').value, prizes: $('#rfPrizes').value, segments: $('#rfSegs').value, entry: $('#rfEntry').value, repeat: $('#rfRepeat').checked };
+  store.set('cg-raffle', d);
+  wheelSound.unlock();
+  send('host:startRaffle', d);
+};
+{
+  const d = store.get('cg-raffle');
+  if (d) {
+    $('#rfTitle').value = d.title || ''; $('#rfPrizes').value = d.prizes || ''; $('#rfSegs').value = d.segments || '';
+    $('#rfEntry').value = d.entry || 'all'; $('#rfRepeat').checked = !!d.repeat;
+    $(`#rfMode [data-mode=${d.mode === 'wheel' ? 'wheel' : 'raffle'}]`).click();
+  }
+}
 
 // ---------- Mr & Mrs ----------
 $('#loadCouple').onclick = async () => { $('#coupleText').value = (await getPack()).mrAndMrs.join('\n'); };
@@ -357,6 +429,7 @@ function primaryAction() {
   if (g.type === 'bingo' && (g.mode === 'numbers' || window.musicCanPlay?.())) return () => (g.mode === 'music' ? window.musicNext() : send('host:call'));
   if (g.type === 'couple' && g.phase !== 'final') return () => send('host:coupleNext');
   if (g.type === 'challenge' && g.phase === 'signup') return () => send('host:draw');
+  if (g.type === 'raffle' && g.phase !== 'spinning') return () => { wheelSound.unlock(); send('host:spin'); };
   if (g.type === 'poll') return () => (g.open || g.index + 1 >= g.of ? send('host:pollOpen', { open: !g.open }) : send('host:pollNext'));
   return null;
 }
@@ -375,7 +448,12 @@ function renderControls() {
   });
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
-  if (g.type === 'challenge') {
+  if (g.type === 'raffle') {
+    const again = g.phase === 'won' ? (g.mode === 'raffle' && g.nextPrize ? `Draw next prize` : 'Spin again') : '🎡 Spin the wheel';
+    if (g.phase !== 'spinning') html += `<button class="primary" data-act="spin">${again} <span class="muted">(space)</span></button>`;
+    if (g.phase === 'won' && g.mode === 'raffle') html += `<button data-act="redraw" title="Spin again for the same prize">🙋 Winner not here? Redraw</button>`;
+    html += `<span class="muted">${g.mode === 'raffle' ? `${g.poolSize} in the draw${g.entry === 'optin' ? ` · ${g.entrants} entered` : ''}${g.prizeCount ? ` · ${g.prizesLeft} prizes left` : ''}` : `${g.poolSize} on the wheel`}</span>`;
+  } else if (g.type === 'challenge') {
     if (g.phase === 'signup') html += `<button class="primary" data-act="draw">🥁 Draw ${g.count} <span class="muted">(space)</span></button>`;
     if (g.phase === 'picked') {
       html += `<button data-act="drawOne">Pick one more</button>`;
@@ -404,6 +482,8 @@ function renderControls() {
   html += `<button data-act="end">End game</button>`;
   live.innerHTML = html;
   live.querySelector('[data-act=next]')?.addEventListener('click', () => send('host:next'));
+  live.querySelector('[data-act=spin]')?.addEventListener('click', () => { wheelSound.unlock(); send('host:spin'); });
+  live.querySelector('[data-act=redraw]')?.addEventListener('click', () => { wheelSound.unlock(); send('host:redraw'); });
   live.querySelector('[data-act=draw]')?.addEventListener('click', () => send('host:draw'));
   live.querySelector('[data-act=drawOne]')?.addEventListener('click', () => send('host:draw', { n: 1 }));
   live.querySelector('[data-act=chVote]')?.addEventListener('click', () => send('host:challengeVote'));
@@ -465,6 +545,7 @@ function renderStage() {
     st.innerHTML = `<div class="lobby">
       <div class="bigqr">${joinInfo?.svg || ''}</div>
       <div>
+        ${state.event.logo ? `<img class="lobbylogo" src="${esc(state.event.logo)}" alt="" />` : ''}
         ${eventTitle(state.event) ? `<div class="lobbyevent">${state.event.type === 'wedding' ? 'Welcome to the wedding of' : 'Welcome to'}</div><div class="lobbyname">${esc(eventTitle(state.event))}</div>` : ''}
         <h1 class="lobbytitle">Scan to play!</h1>
         <div class="muted lobbyurl">or go to <b>${esc(joinInfo?.url.replace(/^https?:\/\//, '').replace(/\/play.*/, '') || '')}</b> and enter</div>
@@ -475,6 +556,7 @@ function renderStage() {
     return;
   }
   if (g.type === 'challenge') return renderChallenge(st, g);
+  if (g.type === 'raffle') return renderRaffle(st, g);
   if (g.type === 'couple') return renderCouple(st, g);
   if (g.type === 'poll') return renderPoll(st, g);
   if (g.type === 'quiz') return renderQuiz(st, g);
@@ -585,6 +667,169 @@ function renderChallenge(st, g) {
     ${already.length ? `<div class="qhead" style="margin-top:2cqh">Also up: ${already.map(esc).join(', ')}</div>` : ''}</div>`;
 }
 
+// ---------- the wheel ----------
+// Spins are timed from the server's clock, so a redraw mid-spin (or the phone
+// remote) picks up at exactly the same angle.
+const wheelSound = {
+  ctx: null,
+  unlock() { try { this.ctx ||= new (window.AudioContext || window.webkitAudioContext)(); this.ctx.resume?.(); } catch {} },
+  tick(gain = 0.25) {
+    const c = this.ctx;
+    if (!c || c.state !== 'running') return;
+    const o = c.createOscillator(), v = c.createGain();
+    o.type = 'square'; o.frequency.value = 1800;
+    v.gain.setValueAtTime(gain, c.currentTime);
+    v.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.03);
+    o.connect(v).connect(c.destination); o.start(); o.stop(c.currentTime + 0.04);
+  },
+  tada() {
+    const c = this.ctx;
+    if (!c || c.state !== 'running') return;
+    [523, 659, 784, 1047].forEach((f, i) => {
+      const o = c.createOscillator(), v = c.createGain(), t = c.currentTime + i * 0.09;
+      o.type = 'triangle'; o.frequency.value = f;
+      v.gain.setValueAtTime(0.0001, t); v.gain.exponentialRampToValueAtTime(0.3, t + 0.02); v.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      o.connect(v).connect(c.destination); o.start(t); o.stop(t + 0.65);
+    });
+  },
+};
+let wheelRaf = 0;
+let wheelLogo = { src: '', img: null };
+let lastTick = -1, tadaFor = 0;
+const IDLE_DPS = 6; // slow idle turn, degrees per second
+const idleAngle = (t) => ((t / 1000) * IDLE_DPS) % 360;
+const easeOut = (t) => 1 - (1 - t) ** 4;
+
+function wheelAngle(g, now) {
+  const n = g.segs.length || 1, a = 360 / n;
+  if (!g.spin) return idleAngle(now);
+  const start = idleAngle(g.spin.at);
+  const target = ((-(g.spin.index + 0.5 + g.spin.jitter) * a) % 360 + 360) % 360;
+  const final = start + g.spin.turns * 360 + ((target - start) % 360 + 360) % 360;
+  const t = Math.min(1, Math.max(0, (now - g.spin.at) / g.spin.ms));
+  return start + (final - start) * easeOut(t);
+}
+
+function wheelColours(n) {
+  const cs = getComputedStyle(document.body);
+  const base = ['--a0', '--a1', '--a2', '--a3', '--accent'].map((v) => cs.getPropertyValue(v).trim()).filter(Boolean);
+  const out = Array.from({ length: n }, (_, i) => base[i % base.length]);
+  if (n > 1 && out[n - 1] === out[0]) out[n - 1] = base[(n - 1 + 2) % base.length];
+  return out;
+}
+
+function drawWheel(cv, g) {
+  const dpr = window.devicePixelRatio || 1;
+  const size = cv.clientWidth;
+  if (!size) return;
+  if (cv.width !== Math.round(size * dpr)) { cv.width = cv.height = Math.round(size * dpr); }
+  const x = cv.getContext('2d');
+  const W = cv.width, R = W / 2 - 14 * dpr, C = W / 2;
+  const segs = g.segs.length ? g.segs : [{ label: 'Waiting for guests…' }];
+  const n = segs.length, a = (Math.PI * 2) / n;
+  const now = Date.now() + clockOffset;
+  const rot = (wheelAngle({ ...g, segs }, now) * Math.PI) / 180;
+  const cols = wheelColours(n);
+  const won = g.phase === 'won' && g.spin;
+  x.clearRect(0, 0, W, W);
+  x.save();
+  x.translate(C, C);
+  // rim
+  x.beginPath(); x.arc(0, 0, R + 10 * dpr, 0, Math.PI * 2); x.fillStyle = '#ffffff22'; x.fill();
+  for (let i = 0; i < n; i++) {
+    const s0 = -Math.PI / 2 + rot + i * a;
+    x.beginPath(); x.moveTo(0, 0); x.arc(0, 0, R, s0, s0 + a); x.closePath();
+    x.fillStyle = cols[i];
+    x.globalAlpha = won && i !== g.spin.index ? 0.35 : 1;
+    x.fill();
+    x.globalAlpha = 1;
+    x.strokeStyle = '#0006'; x.lineWidth = 2 * dpr; x.stroke();
+    // label along the radius
+    x.save();
+    x.rotate(s0 + a / 2);
+    // Shrink long labels to fit before resorting to "…".
+    let fs = Math.min(R * 0.11, (R * a) / 1.7, R / 9);
+    const minFs = Math.max(10 * dpr, fs * 0.55);
+    let label = segs[i].label;
+    const maxW = R * 0.66;
+    x.font = `800 ${fs}px system-ui, sans-serif`;
+    while (fs > minFs && x.measureText(label).width > maxW) { fs *= 0.93; x.font = `800 ${fs}px system-ui, sans-serif`; }
+    x.fillStyle = '#fff'; x.textAlign = 'right'; x.textBaseline = 'middle';
+    x.shadowColor = '#0008'; x.shadowBlur = 4 * dpr;
+    while (label.length > 3 && x.measureText(label).width > maxW) label = label.slice(0, -2).trimEnd() + '…';
+    x.fillText(label, R - 16 * dpr, 0);
+    x.restore();
+  }
+  // pegs
+  for (let i = 0; i < n; i++) {
+    const s0 = -Math.PI / 2 + rot + i * a;
+    x.beginPath(); x.arc(Math.cos(s0) * (R + 2 * dpr), Math.sin(s0) * (R + 2 * dpr), 4 * dpr, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill();
+  }
+  // hub with the DJ's logo
+  const hub = R * 0.24;
+  const cs = getComputedStyle(document.body);
+  x.beginPath(); x.arc(0, 0, hub, 0, Math.PI * 2); x.fillStyle = cs.getPropertyValue('--bg').trim() || '#0b0b14';
+  x.shadowColor = '#0009'; x.shadowBlur = 20 * dpr; x.fill(); x.shadowBlur = 0;
+  x.lineWidth = 5 * dpr; x.strokeStyle = cs.getPropertyValue('--accent').trim(); x.stroke();
+  const logo = state?.event?.logo;
+  if (logo && wheelLogo.src !== logo) { wheelLogo = { src: logo, img: new Image() }; wheelLogo.img.src = logo; }
+  if (logo && wheelLogo.img?.complete && wheelLogo.img.naturalWidth) {
+    const im = wheelLogo.img, k = Math.min((hub * 1.7) / im.naturalWidth, (hub * 1.25) / im.naturalHeight);
+    x.drawImage(im, (-im.naturalWidth * k) / 2, (-im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
+  } else {
+    x.font = `${hub}px system-ui, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(g.mode === 'raffle' ? '🎟️' : '🎡', 0, hub * 0.05);
+  }
+  x.restore();
+  // pointer at the top
+  x.beginPath();
+  x.moveTo(C - 22 * dpr, 2 * dpr); x.lineTo(C + 22 * dpr, 2 * dpr); x.lineTo(C, 46 * dpr); x.closePath();
+  x.fillStyle = '#fff'; x.shadowColor = '#000a'; x.shadowBlur = 10 * dpr; x.fill(); x.shadowBlur = 0;
+  x.strokeStyle = getComputedStyle(document.body).getPropertyValue('--accent'); x.lineWidth = 3 * dpr; x.stroke();
+  // tick as each peg passes the pointer
+  if (g.phase === 'spinning') {
+    const under = Math.floor(((((-rot * 180) / Math.PI) % 360) + 360) % 360 / (360 / n));
+    if (under !== lastTick) { if (lastTick !== -1) wheelSound.tick(); lastTick = under; }
+  } else lastTick = -1;
+}
+
+function renderRaffle(st, g) {
+  cancelAnimationFrame(wheelRaf);
+  const raffle = g.mode === 'raffle';
+  const prizeLine = raffle && g.nextPrize && g.phase !== 'won' ? `<div class="rf-prize">Now drawing: <b>${esc(g.nextPrize)}</b></div>` : '';
+  const how = raffle
+    ? g.entry === 'optin'
+      ? `Tap <b>ENTER</b> on your phone to get in the draw! <b>${g.entrants}</b> entered`
+      : `Your ticket number is on your phone · <b>${g.poolSize}</b> in the draw`
+    : '';
+  const winners = raffle && g.winners.length
+    ? `<div class="rf-winners"><div class="qhead">Winners</div>${g.winners.slice().reverse().slice(0, 8).map((w) => `<div class="rf-w"><span class="rf-t">${esc(w.ticket)}</span> <b>${esc(w.label)}</b>${w.prize ? `<small>${esc(w.prize)}</small>` : ''}</div>`).join('')}</div>`
+    : '';
+  const shown = g.phase === 'won' && g.last;
+  const result = shown
+    ? `<div class="rf-result pop">${raffle ? `<div class="qhead">${g.last.prize ? esc(g.last.prize) : 'And the winner is…'}</div><div class="rf-wname">🎉 ${esc(g.last.label)}</div><div class="rf-wticket">Ticket ${esc(g.last.ticket)}</div>` : `<div class="rf-wname">${esc(g.last.label)}</div>`}</div>`
+    : '';
+  st.innerHTML = `<div class="rf">
+    <div class="rf-wheelwrap"><canvas id="wheel"></canvas></div>
+    <div class="rf-info">
+      <div class="qtext rf-title">${esc(g.title)}</div>
+      ${prizeLine}
+      ${g.phase === 'spinning' ? '<div class="qhead">🥁 Round and round it goes…</div>' : ''}
+      ${result}
+      ${how ? `<div class="qhead">${how}</div>` : ''}
+      ${winners}
+    </div>
+  </div>`;
+  if (shown && tadaFor !== g.spin?.at) { tadaFor = g.spin?.at; wheelSound.tada(); }
+  const cv = $('#wheel');
+  const loop = () => {
+    const cur = state?.game;
+    if (cur?.type !== 'raffle' || !cv.isConnected) return;
+    drawWheel(cv, cur);
+    wheelRaf = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
 function renderCouple(st, g) {
   const [A, B] = g.options;
   if (g.phase === 'intro') {
@@ -690,7 +935,8 @@ function render() {
   if (state) {
     applyTheme(state.event);
     const t = eventTitle(state.event);
-    $('#brand').innerHTML = t ? `<span class="evtitle">${esc(t)}</span>` : 'Crowd <span>QR</span> Games';
+    $('#brand').innerHTML = (state.event.logo ? `<img class="sidelogo" src="${esc(state.event.logo)}" alt="" />` : '') +
+      (t ? `<span class="evtitle">${esc(t)}</span>` : state.event.logo ? '' : 'Crowd <span>QR</span> Games');
     if (!eventFormFilled) {
       eventFormFilled = true;
       const fresh = !state.event.title && !state.event.a && state.event.type === 'party';
@@ -698,7 +944,12 @@ function render() {
       // Carry the DJ's last event settings into a fresh room.
       if (fresh && !isRemote && store.get('cg-event')) send('host:event', ev);
       $('#evType').value = ev.type; $('#evTitle').value = ev.title; $('#evA').value = ev.a; $('#evB').value = ev.b;
+      accentVal = ev.accent || '';
       applyTheme(ev);
+      $('#evAccent').value = accentVal || getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#ff3d9a';
+      const logo = store.get('cg-logo');
+      if (!state.event.logo && logo && !isRemote) send('host:logo', { data: logo });
+      showLogoBox(state.event.logo || (!isRemote && logo) || null);
     }
   }
   if (state) $('#chTonight').textContent = state.pickedTonight ? `(${state.pickedTonight} picked so far tonight)` : '';

@@ -1,6 +1,7 @@
 // End-to-end smoke test over real sockets: quiz + number bingo + music bingo.
 const assert = require('assert');
 const { io } = require('socket.io-client');
+process.env.CG_SPIN_MS = '150';
 const { server, rooms } = require('../server');
 
 const call = (s, ev, d = {}) => new Promise((r) => s.emit(ev, d, r));
@@ -233,6 +234,53 @@ server.listen(0, async () => {
   await call(host, 'host:next');
   await wait(100);
   assert.ok(latest.get('Ana').game.cat, 'category shown on phones');
+
+  // Raffle: tickets, prizes in order, no repeat winners, redraw, opt-in
+  assert.match(latest.get('Ana').me.ticket, /^#\d{3}$/);
+  assert.ok((await call(host, 'host:startRaffle', { mode: 'raffle', prizes: 'Fizz\nBar tab' })).ok);
+  assert.ok((await call(host, 'host:spin')).ok);
+  assert.ok((await call(host, 'host:spin')).error, 'no double spin');
+  await wait(100);
+  assert.equal(latest.get('Ana').game.phase, 'spinning');
+  assert.equal(latest.get('Ana').game.last, null, 'winner secret mid-spin');
+  await wait(150);
+  let rg = rooms.get(code).game;
+  assert.equal(rg.winners[0].prize, 'Fizz');
+  const firstWinner = rg.winners[0].id;
+  assert.ok((await call(host, 'host:redraw')).ok);
+  await wait(250);
+  assert.equal(rg.winners.length, 1);
+  assert.notEqual(rg.winners[0].id, firstWinner, 'redraw skips the absent winner');
+  assert.equal(rg.winners[0].prize, 'Fizz', 'redraw keeps the prize');
+  assert.ok((await call(host, 'host:spin')).error, 'nobody left after skip + win');
+  const wn = rooms.get(code).players.get(rg.winners[0].id).name;
+  await wait(50);
+  assert.ok(latest.get(wn).game.last.me && latest.get(wn).game.won[0] === 'Fizz', 'winner told on phone');
+  // opt-in + own wheel
+  assert.ok((await call(host, 'host:startRaffle', { mode: 'raffle', entry: 'optin' })).ok);
+  assert.ok((await call(host, 'host:spin')).error, 'nobody entered');
+  players[0].emit('player:raffleEnter', { in: true });
+  await wait(50);
+  assert.ok((await call(host, 'host:spin')).ok);
+  await wait(250);
+  assert.equal(rooms.get(code).players.get(rooms.get(code).game.winners[0].id).name, 'Ana');
+  assert.ok((await call(host, 'host:startRaffle', { mode: 'wheel', segments: 'A' })).error, 'wheel needs 2+');
+  assert.ok((await call(host, 'host:startRaffle', { mode: 'wheel', segments: 'Sing\nDance\nJoke' })).ok);
+  assert.ok((await call(host, 'host:spin')).ok);
+  await wait(250);
+  assert.ok(['Sing', 'Dance', 'Joke'].includes(rooms.get(code).game.winners[0].label));
+  assert.ok((await call(host, 'host:spin')).ok, 'wheel spins again');
+
+  // Logo + brand colour
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  assert.ok((await call(host, 'host:logo', { data: png })).ok);
+  assert.ok((await call(host, 'host:logo', { data: 'data:text/html;base64,AAAA' })).error, 'logo must be an image');
+  await call(host, 'host:event', { type: 'party', title: 'X', accent: '#123456' });
+  await wait(50);
+  const ev = latest.get('Ana').event;
+  assert.equal(ev.accent, '#123456');
+  const lr = await fetch(url + ev.logo);
+  assert.equal(lr.headers.get('content-type'), 'image/png');
 
   console.log('All smoke tests passed');
   [host, ...players].forEach((s) => s.close());

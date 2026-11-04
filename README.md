@@ -28,6 +28,8 @@ Wedding packs:
 - **Crowd vote:** a live poll on the big screen, for things like "What should I play next?". Guests can change their vote until you close it.
 
 - **Volunteer draw:** made for between courses or between sets. Announce a challenge (hula hoop-off, fancy-dress karaoke, dance-off…). Guests who want to take part tap "I'm in!", then the DJ draws people at random with a drumroll on screen, and picked guests' phones buzz. It skips people already picked tonight so everyone gets a turn, lets you pick one more if someone's missing, and can hand over to a crowd vote for the winner.
+- **Raffle & wheel:** a big spinning wheel with tick sounds. *Prize raffle*: every guest gets a ticket number on their phone (everyone who joined, or only those who tap Enter), prizes are drawn in order, winners' phones buzz, and "Winner not here? Redraw" spins again for the same prize. *Own list*: put forfeits, dares, drinks or anything on the wheel and spin as often as you like.
+- **Logo & brand colour** (Event tab): your logo shows on the welcome screen, the wheel's centre and guests' phones; the brand colour replaces the theme's accent. Both are remembered in the host's browser for the next event.
 
 Winning patterns: one line, two lines or full house. You can change the pattern mid-game, for example going from line to full house.
 

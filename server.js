@@ -103,6 +103,14 @@ app.get('/api/join-url/:code', async (req, res) => {
   res.json({ url, svg });
 });
 
+// The DJ's event logo, shown on the big screen, the wheel and the phones.
+app.get('/logo/:code', (req, res) => {
+  const r = rooms.get(String(req.params.code).toUpperCase());
+  if (!r?.logo) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.type(r.logo.type).send(r.logo.buf);
+});
+
 app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 
 app.get('/api/qr', async (req, res) => {
@@ -175,7 +183,9 @@ function createRoom() {
     players: new Map(), // playerId -> { id, name, score, sockets:Set, card?, answer? }
     game: null,
     // type: wedding | party | pub. Names personalise the wedding games and screens.
-    event: { type: 'party', title: '', a: '', b: '' },
+    event: { type: 'party', title: '', a: '', b: '', accent: '' },
+    logo: null, // { buf, type, v }: the DJ's logo, served at /logo/CODE
+    ticketSeq: 0, // raffle ticket numbers, handed out as guests join
     touched: Date.now(),
   };
   rooms.set(room.code, room);
@@ -408,6 +418,98 @@ function drawVolunteers(room, n) {
   return null;
 }
 
+// ---------- raffle & prize wheel ----------
+// Raffle: every guest (or only those who tap "Enter") has a ticket number, and the
+// wheel picks a winner for each prize. Wheel: the DJ's own list (forfeits, prizes,
+// dares…), spun as often as they like. The server picks; the screen just animates.
+const SPIN_MS = Number(process.env.CG_SPIN_MS) || 7000; // tests shorten it
+const WHEEL_MAX = 24; // segments drawn on the wheel; bigger raffles show a random sample
+
+function startRaffle(room, { mode, title, prizes, segments, entry, repeat }) {
+  const lines = (a, n) => (Array.isArray(a) ? a : String(a || '').split('\n')).map((x) => clean(x, 60)).filter(Boolean).slice(0, n);
+  const wheel = mode === 'wheel';
+  const segs = lines(segments, 40);
+  if (wheel && segs.length < 2) return 'Add at least 2 things to put on the wheel.';
+  room.game = {
+    type: 'raffle', mode: wheel ? 'wheel' : 'raffle',
+    title: clean(title, 80) || (wheel ? 'Spin the wheel!' : 'Prize raffle'),
+    prizes: lines(prizes, 50), segments: segs, entry: entry === 'optin' ? 'optin' : 'all',
+    repeat: !!repeat, entrants: new Set(), skipped: new Set(), winners: [], phase: 'ready', spin: null, timer: null,
+  };
+  return null;
+}
+
+const ticketLabel = (p) => `#${String(p.ticket).padStart(3, '0')}`;
+
+// Guests who can still win.
+function rafflePool(room) {
+  const g = room.game;
+  const won = new Set(g.winners.map((w) => w.id));
+  return [...room.players.values()].filter((p) =>
+    (g.entry === 'all' || g.entrants.has(p.id)) && !g.skipped.has(p.id) && (g.repeat || !won.has(p.id)));
+}
+
+const segOf = (p) => ({ id: p.id, label: p.name, ticket: ticketLabel(p) });
+
+// What the idle wheel shows before a spin: a stable sample, so it doesn't jump around.
+function wheelPreview(room) {
+  const g = room.game;
+  if (g.mode === 'wheel') return g.segments.map((label) => ({ label }));
+  return rafflePool(room).sort((a, b) => a.ticket - b.ticket).slice(0, WHEEL_MAX).map(segOf);
+}
+
+function spinWheel(room) {
+  const g = room.game;
+  if (g.phase === 'spinning') return 'The wheel is already spinning.';
+  let segs, index, winner = null;
+  if (g.mode === 'wheel') {
+    segs = g.segments.map((label) => ({ label }));
+    index = crypto.randomInt(segs.length);
+  } else {
+    const pool = rafflePool(room);
+    if (!pool.length) return g.entry === 'optin' && !g.entrants.size ? 'Nobody has entered yet.' : 'Everyone in the draw has already won.';
+    winner = pool[crypto.randomInt(pool.length)];
+    if (pool.length <= WHEEL_MAX) {
+      segs = wheelPreview(room);
+    } else {
+      // Show a random sample of entrants with the winner somewhere among them.
+      segs = shuffle([winner, ...shuffle(pool.filter((p) => p !== winner)).slice(0, WHEEL_MAX - 1)]).map(segOf);
+    }
+    index = segs.findIndex((s) => s.id === winner.id);
+  }
+  const prize = g.mode === 'raffle' ? g.prizes[g.winners.length] || '' : '';
+  g.phase = 'spinning';
+  g.spin = { segs, index, at: Date.now(), ms: SPIN_MS, jitter: (crypto.randomInt(1000) / 1000 - 0.5) * 0.7, turns: 6 + crypto.randomInt(3) };
+  g.pending = { id: winner?.id || null, label: winner ? winner.name : segs[index].label, ticket: winner ? ticketLabel(winner) : '', prize };
+  clearTimeout(g.timer);
+  g.timer = setTimeout(() => {
+    if (room.game !== g) return;
+    g.phase = 'won';
+    g.winners.push({ ...g.pending, at: Date.now() });
+    if (winner) winner.score += 1;
+    broadcast(room);
+  }, SPIN_MS);
+  return null;
+}
+
+function raffleView(room, g, forPlayer) {
+  const spinning = g.phase === 'spinning';
+  const last = g.phase === 'won' ? g.winners.at(-1) : null;
+  return {
+    type: 'raffle', mode: g.mode, title: g.title, phase: g.phase, entry: g.entry, repeat: g.repeat,
+    segs: g.spin && g.phase !== 'ready' ? g.spin.segs.map(({ label, ticket }) => ({ label, ticket })) : wheelPreview(room).map(({ label, ticket }) => ({ label, ticket })),
+    spin: g.spin && g.phase !== 'ready' ? { index: g.spin.index, at: g.spin.at, ms: g.spin.ms, jitter: g.spin.jitter, turns: g.spin.turns } : null,
+    now: Date.now(),
+    nextPrize: g.mode === 'raffle' ? (spinning ? g.pending.prize : g.prizes[g.winners.length] || '') : '',
+    prizesLeft: Math.max(0, g.prizes.length - g.winners.length), prizeCount: g.prizes.length,
+    last: last && { label: last.label, ticket: last.ticket, prize: last.prize, me: forPlayer ? last.id === forPlayer.id : undefined },
+    // The winners list on screen; for a spin in progress, the result stays hidden.
+    winners: g.winners.map(({ label, ticket, prize }) => ({ label, ticket, prize })),
+    entrants: g.entry === 'all' ? room.players.size : [...g.entrants].filter((id) => room.players.has(id)).length,
+    poolSize: g.mode === 'raffle' ? rafflePool(room).length : g.segments.length,
+  };
+}
+
 // ---------- Mr & Mrs (couple game) ----------
 // Each question has the couple's two names as options. The couple answer secretly
 // (on their own phones, or the DJ taps their answers in) while guests vote on who
@@ -472,7 +574,7 @@ function coupleCounts(g) {
 function coupleView(room, who) {
   const g = room.game;
   const names = coupleNames(room);
-  const base = { role: 'couple', code: room.code, event: room.event, who, myName: who === 'a' ? names[0] : names[1] };
+  const base = { role: 'couple', code: room.code, event: eventView(room), who, myName: who === 'a' ? names[0] : names[1] };
   if (g?.type !== 'couple') return { ...base, game: null };
   return { ...base, game: { type: 'couple', phase: g.phase, index: g.index, total: g.questions.length, question: g.questions[g.index] || null, options: names, myAnswer: g.answers[who] } };
 }
@@ -546,9 +648,11 @@ function checkClaim(room, p) {
 }
 
 // ---------- state views ----------
+const eventView = (room) => ({ ...room.event, logo: room.logo ? `/logo/${room.code}?v=${room.logo.v}` : null });
+
 function hostView(room) {
   const g = room.game;
-  const base = { role: 'host', code: room.code, event: room.event, players: leaderboard(room), pickedTonight: room.pickedTonight.size };
+  const base = { role: 'host', code: room.code, event: eventView(room), players: leaderboard(room), pickedTonight: room.pickedTonight.size };
   if (!g) return { ...base, game: null };
   if (g.type === 'challenge') {
     const nameOf = (id) => room.players.get(id)?.name || '?';
@@ -562,6 +666,7 @@ function hostView(room) {
       },
     };
   }
+  if (g.type === 'raffle') return { ...base, game: raffleView(room, g) };
   if (g.type === 'couple') {
     const revealed = g.phase === 'couple' || g.phase === 'crowd';
     return {
@@ -615,8 +720,13 @@ const hlView = (hl, reveal, outcome) =>
 function playerView(room, p) {
   const g = room.game;
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
-  const base = { role: 'player', code: room.code, event: room.event, me: { id: p.id, name: p.name, score: p.score, rank }, playerCount: room.players.size };
+  const base = { role: 'player', code: room.code, event: eventView(room), me: { id: p.id, name: p.name, score: p.score, rank, ticket: ticketLabel(p) }, playerCount: room.players.size };
   if (!g) return { ...base, game: null };
+  if (g.type === 'raffle') {
+    const v = raffleView(room, g, p);
+    const won = g.winners.filter((w) => w.id === p.id).map((w) => w.prize || 'a win');
+    return { ...base, game: { ...v, segs: undefined, spin: v.spin && { at: v.spin.at, ms: v.spin.ms }, entered: g.entry === 'all' || g.entrants.has(p.id), won } };
+  }
   if (g.type === 'challenge') {
     const shown = g.phase === 'picked';
     return {
@@ -742,7 +852,8 @@ io.on('connection', (socket) => {
   }));
   socket.on('host:event', host((d) => {
     const type = ['wedding', 'party', 'pub'].includes(d.type) ? d.type : 'party';
-    room.event = { type, title: clean(d.title, 60), a: clean(d.a, 30), b: clean(d.b, 30) };
+    const accent = /^#[0-9a-f]{6}$/i.test(d.accent || '') ? d.accent : '';
+    room.event = { type, title: clean(d.title, 60), a: clean(d.a, 30), b: clean(d.b, 30), accent };
   }));
   socket.on('host:pollOpen', host(({ open }) => {
     if (room.game?.type !== 'poll') return 'No vote running';
@@ -806,7 +917,7 @@ io.on('connection', (socket) => {
       if ([...r.players.values()].some((x) => x.name.toLowerCase() === nm.toLowerCase()))
         return ack(cb, { error: 'That name is taken, try another.' });
       if (r.players.size >= 500) return ack(cb, { error: 'Room is full.' });
-      p = { id: pid, name: nm, score: 0, sockets: new Set() };
+      p = { id: pid, name: nm, score: 0, sockets: new Set(), ticket: ++r.ticketSeq };
       r.players.set(pid, p);
       if (r.game?.type === 'bingo') dealCard(r, p);
     }
@@ -823,6 +934,26 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
+  socket.on('host:startRaffle', host((d) => startRaffle(room, d)));
+  socket.on('host:spin', host(() => (room.game?.type === 'raffle' ? spinWheel(room) : 'No raffle or wheel running')));
+  // The winner isn't here: forget that win, keep the prize, and spin again.
+  socket.on('host:redraw', host(() => {
+    const g = room.game;
+    if (g?.type !== 'raffle' || g.phase !== 'won') return 'Nothing to redraw';
+    const w = g.winners.pop();
+    if (w.id) { g.skipped.add(w.id); const p = room.players.get(w.id); if (p) p.score = Math.max(0, p.score - 1); }
+    g.phase = 'ready';
+    return spinWheel(room);
+  }));
+  socket.on('host:logo', host(({ data } = {}) => {
+    if (!data) { room.logo = null; return null; }
+    const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(data));
+    if (!m) return 'Logo must be a PNG, JPG, WebP or GIF image.';
+    const buf = Buffer.from(m[2], 'base64');
+    if (buf.length > 400e3) return 'That logo is too big. Try a smaller image.';
+    room.logo = { buf, type: m[1], v: (room.logo?.v || 0) + 1 };
+    return null;
+  }));
   socket.on('host:startChallenge', host((d) => startChallenge(room, d)));
   socket.on('host:draw', host(({ n }) => {
     const g = room.game;
@@ -872,6 +1003,14 @@ io.on('connection', (socket) => {
     const c = Number(choice);
     if (!(c >= 0 && c < g.options.length)) return;
     g.votes.set(player.id, c); // players can change their mind while the vote is open
+    broadcast(room);
+  });
+
+  socket.on('player:raffleEnter', ({ in: wantIn } = {}) => {
+    const g = room?.game;
+    if (!player || g?.type !== 'raffle' || g.entry !== 'optin') return;
+    if (wantIn) g.entrants.add(player.id);
+    else if (g.phase !== 'spinning') g.entrants.delete(player.id);
     broadcast(room);
   });
 

@@ -27,6 +27,7 @@
         <button data-tab="hl">Higher or lower</button>
         <button data-tab="poll">Crowd vote</button>
         <button data-tab="challenge">🎲 Volunteer draw</button>
+        <button data-tab="raffle">🎡 Raffle &amp; wheel</button>
       </span>
       <span id="liveBar" class="bar"></span>
       <span class="err" id="err"></span>
@@ -46,6 +47,19 @@
       <div class="row2 wedding-only">
         <label>Partner 1 <input id="evA" maxlength="30" placeholder="e.g. Sarah" /></label>
         <label>Partner 2 <input id="evB" maxlength="30" placeholder="e.g. Tom" /></label>
+      </div>
+      <div class="brandset">
+        <div class="logobox" id="logoBox"><span class="muted">No logo</span></div>
+        <div style="display:grid;gap:8px">
+          <div class="muted"><b>Your logo</b> shows on the welcome screen, in the middle of the prize wheel and on guests' phones. A PNG with a see-through background looks best.</div>
+          <div class="bar">
+            <button id="logoPick">🖼️ Choose logo</button>
+            <button id="logoClear" hidden>Remove</button>
+            <input type="file" id="logoIn" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden />
+            <label class="inline">Brand colour <input type="color" id="evAccent" value="#ff3d9a" /></label>
+            <button id="accentReset" title="Back to the theme colour">Reset colour</button>
+          </div>
+        </div>
       </div>
       <button class="primary" id="saveEvent">Save event</button>
     </div>
@@ -222,6 +236,31 @@
       <div class="bar" id="chChips"></div>
       <label><input type="checkbox" id="chExclude" checked /> Give everyone a turn: skip people already picked tonight (unless there's nobody else). <span class="muted" id="chTonight"></span></label>
       <div class="bar"><button class="primary" id="startChallenge">Open sign-ups</button><button id="chReset">Reset tonight's picks</button></div>
+    </div>
+
+    <div class="pane hidden" data-pane="raffle">
+      <div class="muted"><b>Raffle &amp; wheel:</b> a big spinning wheel on screen. Use it for a <b>prize raffle</b> where every guest gets a ticket number on their phone, or put <b>your own list</b> on the wheel: forfeits, dares, drinks, who buys the next round.</div>
+      <div class="bar seg" id="rfMode">
+        <button data-mode="raffle" class="on">🎟️ Prize raffle</button>
+        <button data-mode="wheel">🎡 Wheel of my own list</button>
+      </div>
+      <label>Title on screen <input id="rfTitle" maxlength="80" placeholder="e.g. Charity raffle, or Spin for a forfeit!" /></label>
+      <div class="rf-raffle">
+        <label>Prizes, one per line, drawn in this order (optional)
+          <textarea id="rfPrizes" style="min-height:90px" placeholder="3rd prize: Bottle of fizz&#10;2nd prize: £50 bar tab&#10;1st prize: Weekend away"></textarea></label>
+        <div class="row2">
+          <label>Who's in the draw
+            <select id="rfEntry"><option value="all">Everyone who has joined</option><option value="optin">Only guests who tap "Enter" on their phone</option></select>
+          </label>
+          <label class="inline" style="align-self:end"><input type="checkbox" id="rfRepeat" /> Guests can win more than once</label>
+        </div>
+      </div>
+      <div class="rf-wheel" hidden>
+        <label>What's on the wheel, one per line (2 to 40)
+          <textarea id="rfSegs" style="min-height:120px" placeholder="Sing a song&#10;Do a dance&#10;Buy a round&#10;Free drink!"></textarea></label>
+        <div class="bar" id="rfIdeas"></div>
+      </div>
+      <button class="primary" id="startRaffle">Start the wheel</button>
     </div>
 
     <!-- live panes -->

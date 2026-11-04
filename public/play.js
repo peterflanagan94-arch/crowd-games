@@ -80,8 +80,11 @@ function render() {
   const me = state.me;
   const ev = state.event || {};
   document.body.dataset.theme = ev.type === 'wedding' ? 'elegant' : 'club';
+  if (ev.accent) document.body.style.setProperty('--accent', ev.accent);
+  else document.body.style.removeProperty('--accent');
   const title = ev.title || (ev.type === 'wedding' && ev.a && ev.b ? `${ev.a} & ${ev.b}` : '');
-  $('.ptop .brand').innerHTML = title ? `<span class="evtitle">${esc(title)}</span>` : 'Crowd <span>QR</span> Games';
+  $('.ptop .brand').innerHTML = (ev.logo ? `<img class="plogo" src="${esc(ev.logo)}" alt="" />` : '') +
+    (title ? `<span class="evtitle">${esc(title)}</span>` : ev.logo ? '' : 'Crowd <span>QR</span> Games');
   if (state.role === 'couple') return renderCouplePhone(state);
   $('#who').innerHTML = `<b>${esc(me.name)}</b> · ${['quiz', 'couple'].includes(state.game?.type) ? `${me.score} pts` : `room ${state.code}`}`;
   const g = state.game;
@@ -92,6 +95,7 @@ function render() {
     return;
   }
   if (g.type === 'challenge') return renderChallenge(g);
+  if (g.type === 'raffle') return renderRaffle(g, me);
   if (g.type === 'couple') return renderCoupleGuest(g, me);
   if (g.type === 'poll') return renderPoll(g);
   if (g.type === 'quiz') return renderQuiz(g, me);
@@ -121,6 +125,33 @@ function renderChallenge(g) {
   }
   m.innerHTML = `<div class="center"><div class="big">${g.imIn ? 'Not this time!' : 'And the volunteers are…'}</div>
     <p class="big" style="color:var(--accent2)">${g.picked.map(esc).join(', ')}</p><p class="muted">Give them a cheer! 👏</p></div>`;
+}
+
+let lastWinBuzz = 0;
+function renderRaffle(g, me) {
+  const m = $('#main');
+  if (g.mode === 'wheel') {
+    m.innerHTML = `<div class="center"><div class="huge">🎡</div><div class="big">${esc(g.title)}</div>
+      ${g.phase === 'spinning' ? '<p class="big">Round and round…</p>' : g.last ? `<p class="muted">It landed on</p><p class="big" style="color:var(--accent2)">${esc(g.last.label)}</p>` : '<p class="muted">Watch the big screen!</p>'}</div>`;
+    return;
+  }
+  const ticket = `<div class="ticket ${g.entered ? '' : 'off'}"><small>Your ticket</small><b>${esc(me.ticket)}</b><small>${esc(me.name)}</small></div>`;
+  const wins = g.won.length ? `<p class="center" style="color:var(--good)">🏆 You've won: ${g.won.map(esc).join(', ')}</p>` : '';
+  if (g.phase === 'won' && g.last?.me) {
+    if (lastWinBuzz !== g.spin?.at) { lastWinBuzz = g.spin?.at; navigator.vibrate?.([200, 100, 200, 100, 500]); }
+    m.innerHTML = `<div class="result good"><div class="huge">🎉</div><div class="big">You won!</div>
+      ${g.last.prize ? `<p class="big">${esc(g.last.prize)}</p>` : ''}<p>Ticket <b>${esc(g.last.ticket)}</b><br><b>Head up to the DJ to collect it!</b></p></div>`;
+    return;
+  }
+  let body = '';
+  if (g.phase === 'spinning') body = `<div class="center big">🥁 Spinning…</div><p class="center muted">${g.nextPrize ? `For: <b>${esc(g.nextPrize)}</b>` : 'Fingers crossed!'}</p>`;
+  else if (g.phase === 'won') body = `<p class="center muted">${g.last.prize ? esc(g.last.prize) + ' goes to' : 'The winner is'}</p><div class="center big" style="color:var(--accent2)">${esc(g.last.label)} <span class="muted">${esc(g.last.ticket)}</span></div>`;
+  else body = `<div class="center big">${esc(g.title)}</div>${g.nextPrize ? `<p class="center muted">Up next: <b>${esc(g.nextPrize)}</b></p>` : ''}`;
+  const enter = g.entry === 'optin' && g.phase !== 'spinning'
+    ? `<button class="${g.entered ? 'secondary' : 'primary'} claim" id="rfEnter" style="min-height:110px;font-size:26px">${g.entered ? "✓ You're in the draw" : '🎟️ Enter the draw'}</button>${g.entered ? '<div class="center muted">Tap again to drop out.</div>' : ''}`
+    : '';
+  m.innerHTML = `${body}${g.entered || g.entry === 'all' ? ticket : ''}${enter}${wins}`;
+  $('#rfEnter')?.addEventListener('click', () => { navigator.vibrate?.(20); socket.emit('player:raffleEnter', { in: !g.entered }); });
 }
 
 // One of the couple answering in secret.
