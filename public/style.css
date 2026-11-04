@@ -346,3 +346,18 @@ details summary { cursor: pointer; }
 .emojiq { font-size: clamp(64px, 16cqh, 200px); line-height: 1.1; text-align: center; letter-spacing: .08em; margin: 1cqh 0 2cqh; max-width: 90cqw; animation: emojipop .45s ease-out; }
 .pemoji { font-size: 52px; line-height: 1.15; text-align: center; letter-spacing: .06em; }
 @keyframes emojipop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* music bingo audio */
+.dropzone { border: 2px dashed #ffffff22; border-radius: 12px; padding: 14px; text-align: center; color: var(--muted, #aab); font-size: 14px; transition: .15s; }
+.dropzone.over { border-color: var(--accent2); background: #29e0ff14; color: inherit; }
+.playopts { opacity: .55; }
+.playopts.has-files { opacity: 1; }
+.nowplaying { display: flex; flex-direction: column; gap: 8px; background: #ffffff08; border: 1px solid #ffffff12; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.nowplaying .np-main, .nowplaying .np-opts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.nowplaying .np-info { flex: 1; min-width: 180px; }
+.nowplaying .np-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nowplaying .np-prog { height: 6px; border-radius: 3px; background: #ffffff18; margin-top: 6px; overflow: hidden; }
+.nowplaying .np-prog i { display: block; height: 100%; width: 0; background: var(--accent, #ff3d9a); transition: width .25s linear; }
+.nowplaying select, .nowplaying input[type=range] { width: auto; }
+.nowplaying label { display: flex; gap: 6px; align-items: center; }
+.nowplaying label input { width: auto; }

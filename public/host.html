@@ -105,9 +105,32 @@
     </div>
 
     <div class="pane hidden" data-pane="music">
-      <div class="muted">Paste your playlist, one song per line (for example "Artist - Title"). You need 16 songs for a 4x4 card, or 24 or more for a 5x5 card. During the game, tap each song as you play it.</div>
+      <div class="muted">Build your song list: add your own music files so the app plays them, import a playlist, or paste one song per line ("Artist - Title"). You need 16 songs for a 4x4 card, or 24 or more for a 5x5 card.</div>
+      <div class="bar musicsrc">
+        <button id="addFiles">🎧 Add music files</button>
+        <button id="addFolder">📁 Add a folder</button>
+        <input type="file" id="fileIn" multiple accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" hidden />
+        <input type="file" id="folderIn" webkitdirectory multiple hidden />
+        <span class="muted" id="fileCount"></span>
+      </div>
+      <div class="dropzone" id="dropzone">…or drag music files here. They play from this computer and are never uploaded.</div>
+      <div class="bar">
+        <input id="playlistUrl" placeholder="Spotify or Apple Music playlist link" style="flex:1;min-width:220px" />
+        <button id="importPlaylist">Import titles</button>
+        <button id="importFile" title="CSV (e.g. from Exportify), M3U or TXT">Import a playlist file</button>
+        <input type="file" id="listIn" accept=".csv,.m3u,.m3u8,.txt,text/plain,text/csv" hidden />
+      </div>
       <textarea id="songText" placeholder="Artist - Title&#10;Artist - Title"></textarea>
-      <div class="bar"><button id="loadFloorFillers">🎉 Load 30 classic floor-fillers</button><span class="muted">Works for weddings, pubs and parties. Edit the list to match your set.</span></div>
+      <div class="bar"><button id="loadFloorFillers">🎉 Load 30 classic floor-fillers</button><button id="clearSongs">Clear list</button><span class="muted" id="songCount"></span></div>
+      <div class="row2 playopts" id="playOpts">
+        <label>When a song is called, play
+          <select id="playMode"><option value="clip">a clip from the chorus</option><option value="full">the full song</option><option value="none">nothing (I'll play it from my decks)</option></select>
+        </label>
+        <label>Clip length
+          <select id="clipLen"><option value="20">20 seconds</option><option value="30" selected>30 seconds</option><option value="45">45 seconds</option><option value="60">60 seconds</option></select>
+        </label>
+        <label><input type="checkbox" id="autoCall" /> Auto-call: when a song ends, call and play the next one (stops when someone gets bingo)</label>
+      </div>
       <div class="row2">
         <label>Winning pattern
           <select id="musicPattern"><option value="line">One line</option><option value="two">Two lines</option><option value="full">Full house</option></select>
@@ -176,6 +199,7 @@
       <div class="bar" id="coupleEntry"></div>
     </div>
     <div class="pane hidden" data-pane="liveMusic">
+      <div class="nowplaying" id="nowPlaying" hidden></div>
       <input id="songFilter" placeholder="Search songs…" />
       <div class="songpick" id="songPick"></div>
     </div>
@@ -194,5 +218,6 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/host.js"></script>
+  <script src="/music.js"></script>
 </body>
 </html>

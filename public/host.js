@@ -264,7 +264,7 @@ $('#loadCoupleQuiz').onclick = async () => {
   alert('Template loaded. Edit the answers with the couple before the night. The * marks the correct answer, so move it to the right line.');
 };
 $('#loadWeddingTrivia').onclick = async () => { $('#quizText').value = quizToText((await getPack()).trivia); };
-$('#loadFloorFillers').onclick = async () => { $('#songText').value = (await getPack()).floorFillers.join('\n'); };
+$('#loadFloorFillers').onclick = async () => { $('#songText').value = (await getPack()).floorFillers.join('\n'); $('#songText').dispatchEvent(new Event('input')); };
 $('#loadCoupleHl').onclick = async () => {
   $('#hlMode').value = 'list'; $('#hlMode').onchange();
   $('#hlText').value = (await getPack()).coupleHigherLower.map((i) => `${fill(i.label)} | ${i.value}`).join('\n');
@@ -353,7 +353,7 @@ function primaryAction() {
   const g = state?.game;
   if (!g) return null;
   if (g.type === 'quiz' && g.phase !== 'final') return () => send('host:next');
-  if (g.type === 'bingo' && g.mode === 'numbers') return () => send('host:call');
+  if (g.type === 'bingo' && (g.mode === 'numbers' || window.musicCanPlay?.())) return () => (g.mode === 'music' ? window.musicNext() : send('host:call'));
   if (g.type === 'couple' && g.phase !== 'final') return () => send('host:coupleNext');
   if (g.type === 'challenge' && g.phase === 'signup') return () => send('host:draw');
   if (g.type === 'poll') return () => (g.open || g.index + 1 >= g.of ? send('host:pollOpen', { open: !g.open }) : send('host:pollNext'));
@@ -436,7 +436,7 @@ function renderSongPick() {
   const called = new Set(g.called);
   $('#songPick').innerHTML = g.items
     .filter((i) => !f || i.label.toLowerCase().includes(f))
-    .map((i) => `<button data-id="${i.id}" class="${called.has(i.id) ? 'on' : ''}">${esc(i.label)}</button>`)
+    .map((i) => `<button data-id="${i.id}" class="${called.has(i.id) ? 'on' : ''}">${window.musicHasFile?.(i.label) ? '♪ ' : ''}${esc(i.label)}</button>`)
     .join('');
 }
 

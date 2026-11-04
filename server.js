@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES } = require('./quiz-sample');
 const { CATEGORIES, buildQuiz } = require('./quiz-packs');
+const { importPlaylist } = require('./playlist');
 const { EMOJI_CATEGORIES, buildEmojiRound, emojiQuestions } = require('./emoji-packs');
 
 const PORT = process.env.PORT || 3000;
@@ -127,6 +128,18 @@ app.get('/api/emoji-pack', (req, res) => {
   res.json(buildEmojiRound(cats.length ? cats : EMOJI_CATEGORIES.map((c) => c.id), n, shuffle));
 });
 app.get('/api/challenges', (_req, res) => res.json(CHALLENGES));
+app.get('/api/playlist', async (req, res) => {
+  try {
+    const out = await importPlaylist(req.query.url);
+    console.log(`playlist import: ${new URL(req.query.url).hostname} -> ${out.songs.length} songs`);
+    if (!out.songs.length) throw new Error('no songs found');
+    res.json(out);
+  } catch (e) {
+    if (e.user) return res.status(400).json({ error: e.message });
+    console.warn('playlist import failed:', e.message);
+    res.status(502).json({ error: "Couldn't read that playlist. Check it's set to public. You can also export it as a CSV (for example with Exportify for Spotify) and use Import a playlist file." });
+  }
+});
 
 const shuffle = (a) => {
   const arr = [...a];
@@ -469,7 +482,7 @@ function startBingo(room, { mode, songs, pattern, hideTitles }) {
   let items;
   let size;
   if (mode === 'music') {
-    const list = [...new Set((songs || []).map((s) => clean(s, 100)).filter(Boolean))];
+    const list = [...new Set((songs || []).map((s) => clean(s, 100)).filter(Boolean))].slice(0, 500);
     if (list.length < 16) return 'Music bingo needs at least 16 songs (24+ for a 5x5 card).';
     items = list.map((label, i) => ({ id: String(i), label }));
     size = list.length >= 24 ? 5 : 4;
@@ -886,6 +899,12 @@ io.on('connection', (socket) => {
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Crowd QR Games running: http://localhost:${PORT}  (LAN: http://${lanIp()}:${PORT})`);
+    // Optional check that playlist import still works against the live services.
+    for (const url of (process.env.PLAYLIST_SELFTEST || '').split(/\s+/).filter(Boolean)) {
+      importPlaylist(url)
+        .then((r) => console.log(`playlist selftest OK ${url}: "${r.name}" ${r.songs.length} songs, e.g. ${r.songs.slice(0, 3).join(' | ')}`))
+        .catch((e) => console.log(`playlist selftest FAILED ${url}: ${e.message}`));
+    }
   });
 }
 
