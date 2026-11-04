@@ -271,6 +271,30 @@ server.listen(0, async () => {
   assert.ok(['Sing', 'Dance', 'Joke'].includes(rooms.get(code).game.winners[0].label));
   assert.ok((await call(host, 'host:spin')).ok, 'wheel spins again');
 
+  // Karaoke
+  assert.ok((await call(host, 'host:startKaraoke', { title: 'K night' })).ok);
+  assert.ok((await call(players[0], 'player:karaokeSignUp', { song: 'ABBA - Dancing Queen' })).ok);
+  assert.ok((await call(players[0], 'player:karaokeSignUp', { song: 'Queen - Bohemian Rhapsody' })).error, 'one song each');
+  assert.ok((await call(players[1], 'player:karaokeSignUp', { song: 'Oasis - Wonderwall', with: 'Cat' })).ok);
+  assert.ok((await call(host, 'host:karaoke', { act: 'add', singer: 'Dee', song: 'X - Y', link: 'https://youtu.be/abcdefghijk' })).ok);
+  let kg = rooms.get(code).game;
+  assert.equal(kg.queue[2].yt, 'abcdefghijk');
+  assert.equal(kg.queue[1].singer, 'Ben & Cat');
+  await call(host, 'host:karaoke', { act: 'top', id: kg.queue[2].id });
+  assert.equal(kg.queue[0].singer, 'Dee');
+  await call(host, 'host:karaoke', { act: 'next' });
+  assert.equal(kg.current.singer, 'Dee');
+  assert.equal(kg.video, true, 'video auto-plays when linked');
+  await wait(50);
+  assert.ok(latest.get('Ana').game.upNext, 'Ana told she is up next');
+  await call(host, 'host:karaoke', { act: 'next' });
+  await wait(50);
+  assert.ok(latest.get('Ana').game.onNow);
+  assert.ok((await call(players[0], 'player:karaokeSignUp', { song: 'Queen - Bohemian Rhapsody' })).ok, 'can sign up again after singing');
+  assert.ok((await call(host, 'host:karaoke', { act: 'link', id: kg.current.id, link: 'nope' })).error);
+  const ks = await (await fetch(`${url}/karaoke-songs.json`)).json();
+  assert.ok(Object.values(ks).flat().length > 100);
+
   // Logo + brand colour
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
   assert.ok((await call(host, 'host:logo', { data: png })).ok);

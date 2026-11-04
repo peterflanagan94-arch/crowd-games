@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES } = require('./quiz-sample');
 const { CATEGORIES, buildQuiz } = require('./quiz-packs');
+const karaoke = require('./karaoke');
 const { importPlaylist } = require('./playlist');
 const { PLAYLISTS, YT } = require('./music-library');
 const { EMOJI_CATEGORIES, buildEmojiRound, emojiQuestions } = require('./emoji-packs');
@@ -110,6 +111,9 @@ app.get('/logo/:code', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=86400');
   res.type(r.logo.type).send(r.logo.buf);
 });
+
+// Popular karaoke songs for guests' phones (outside /api, which is for hosts only).
+app.get('/karaoke-songs.json', (_req, res) => res.json(karaoke.KARAOKE_LISTS));
 
 app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 
@@ -667,6 +671,7 @@ function hostView(room) {
     };
   }
   if (g.type === 'raffle') return { ...base, game: raffleView(room, g) };
+  if (g.type === 'karaoke') return { ...base, game: karaoke.hostView(g) };
   if (g.type === 'couple') {
     const revealed = g.phase === 'couple' || g.phase === 'crowd';
     return {
@@ -722,6 +727,7 @@ function playerView(room, p) {
   const rank = leaderboard(room).findIndex((x) => x.id === p.id) + 1;
   const base = { role: 'player', code: room.code, event: eventView(room), me: { id: p.id, name: p.name, score: p.score, rank, ticket: ticketLabel(p) }, playerCount: room.players.size };
   if (!g) return { ...base, game: null };
+  if (g.type === 'karaoke') return { ...base, game: karaoke.playerView(g, p) };
   if (g.type === 'raffle') {
     const v = raffleView(room, g, p);
     const won = g.winners.filter((w) => w.id === p.id).map((w) => w.prize || 'a win');
@@ -934,6 +940,19 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
+  socket.on('host:startKaraoke', host((d) => karaoke.startKaraoke(room, d)));
+  socket.on('host:karaoke', host(({ act, ...d }) => karaoke.hostAction(room, act, d)));
+  socket.on('player:karaokeSignUp', (d, cb) => {
+    if (!room || !player) return;
+    const err = karaoke.signUp(room, player, d || {});
+    ack(cb, err ? { error: err } : { ok: true });
+    if (!err) broadcast(room);
+  });
+  socket.on('player:karaokeCancel', ({ id } = {}) => {
+    if (!room || !player) return;
+    karaoke.cancel(room, player, String(id || ''));
+    broadcast(room);
+  });
   socket.on('host:startRaffle', host((d) => startRaffle(room, d)));
   socket.on('host:spin', host(() => (room.game?.type === 'raffle' ? spinWheel(room) : 'No raffle or wheel running')));
   // The winner isn't here: forget that win, keep the prize, and spin again.
@@ -1051,6 +1070,7 @@ io.on('connection', (socket) => {
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Crowd QR Games running: http://localhost:${PORT}  (LAN: http://${lanIp()}:${PORT})`);
+    if (process.env.KARAOKE_VERIFY === '1') require('./tools/karaoke-verify')().catch((e) => console.log('kres failed', e.message));
     if (process.env.YT_VERIFY === '1') require('./tools/yt-verify')().catch((e) => console.log('ytv failed', e.message));
     // Optional check that playlist import still works against the live services.
     for (const url of (process.env.PLAYLIST_SELFTEST || '').split(/\s+/).filter(Boolean)) {

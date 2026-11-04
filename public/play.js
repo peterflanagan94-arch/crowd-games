@@ -96,6 +96,7 @@ function render() {
   }
   if (g.type === 'challenge') return renderChallenge(g);
   if (g.type === 'raffle') return renderRaffle(g, me);
+  if (g.type === 'karaoke') return renderKaraoke(g, me);
   if (g.type === 'couple') return renderCoupleGuest(g, me);
   if (g.type === 'poll') return renderPoll(g);
   if (g.type === 'quiz') return renderQuiz(g, me);
@@ -125,6 +126,69 @@ function renderChallenge(g) {
   }
   m.innerHTML = `<div class="center"><div class="big">${g.imIn ? 'Not this time!' : 'And the volunteers are…'}</div>
     <p class="big" style="color:var(--accent2)">${g.picked.map(esc).join(', ')}</p><p class="muted">Give them a cheer! 👏</p></div>`;
+}
+
+// ---------- karaoke ----------
+let kLists = null, kPick = '', kQuery = '', kBuzz = '';
+function renderKaraoke(g) {
+  const m = $('#main');
+  const canAdd = g.open && g.mine.length < g.perGuest;
+  const buzzKey = g.onNow ? `on:${g.current.id}` : g.upNext ? `next:${g.mine[0]?.id}` : '';
+  if (buzzKey && buzzKey !== kBuzz) navigator.vibrate?.(g.onNow ? [300, 100, 300, 100, 600] : [200, 100, 200]);
+  kBuzz = buzzKey;
+  const status = g.onNow
+    ? `<div class="result good"><div class="huge">🎤</div><div class="big">You're on!</div><p>${esc(g.current.song)}<br><b>Grab the mic!</b></p></div>`
+    : `${g.upNext ? '<div class="result good" style="padding:14px"><div class="big">🎤 You\'re up next!</div><p>Get ready near the stage.</p></div>' : ''}
+      <div class="center muted">Now singing</div>
+      <div class="center big">${g.current ? `${esc(g.current.singer)}` : '…'}</div>
+      ${g.current ? `<div class="center muted">${esc(g.current.song)}</div>` : ''}
+      ${g.mine.map((e) => `<div class="kmine"><div class="muted">You're number <b>${e.pos}</b> in the queue</div><b>${esc(e.song)}</b><button data-cancel="${e.id}">Take me off</button></div>`).join('')}
+      ${!g.open && !g.mine.length ? '<p class="center muted">Sign-ups are closed for now.</p>' : ''}`;
+  let st = $('#kStatus');
+  if (!st || !!$('#kSign') !== canAdd) {
+    m.innerHTML = `<div id="kStatus"></div>${canAdd ? `<form id="kSign" style="display:grid;gap:8px">
+      <div class="big center" style="margin-top:8px">🎤 Sign up to sing</div>
+      <input id="kQ" placeholder="Search songs, or type your own: Artist - Song" maxlength="100" autocomplete="off" />
+      <div class="ksongs" id="kSongs"></div>
+      <input id="kWith" placeholder="Singing with a friend? Their name (optional)" maxlength="30" />
+      <button class="primary big" id="kGo">Add me to the queue</button>
+      <div class="err center" id="kErr"></div></form>` : ''}`;
+    st = $('#kStatus');
+    if (canAdd) {
+      $('#kQ').value = kQuery;
+      $('#kQ').oninput = (e) => { kQuery = e.target.value; kPick = ''; kSongs(); };
+      $('#kSign').onsubmit = (e) => {
+        e.preventDefault();
+        const song = kPick || kQuery.trim();
+        if (!song) return ($('#kErr').textContent = 'Pick or type a song first.');
+        socket.emit('player:karaokeSignUp', { song, with: $('#kWith').value }, (r) => {
+          if (r?.error) $('#kErr').textContent = r.error;
+          else { kPick = ''; kQuery = ''; navigator.vibrate?.(30); }
+        });
+      };
+      if (!kLists) fetch('/karaoke-songs.json').then((r) => r.json()).then((l) => { kLists = l; kSongs(); });
+      else kSongs();
+    }
+  }
+  st.innerHTML = status;
+  st.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => socket.emit('player:karaokeCancel', { id: b.dataset.cancel })));
+}
+function kSongs() {
+  const el = $('#kSongs');
+  if (!el || !kLists) return;
+  const q = kQuery.toLowerCase().trim();
+  const words = q.split(/\s+/).filter(Boolean);
+  let html = '', shown = 0;
+  for (const [cat, songs] of Object.entries(kLists)) {
+    const hits = songs.filter((s) => words.every((w) => s.toLowerCase().includes(w)));
+    if (!hits.length) continue;
+    const take = q ? hits : hits.slice(0, 6);
+    html += `<div class="kcat">${esc(cat)}</div>` + take.map((s) => `<button type="button" class="${s === kPick ? 'on' : ''}" data-s="${esc(s)}">${esc(s)}</button>`).join('');
+    shown += take.length;
+  }
+  if (!shown) html = `<div class="muted">Not in our list, but that's fine: tap <b>Add me</b> and the DJ will find it.</div>`;
+  el.innerHTML = html;
+  el.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => { kPick = b.dataset.s; kSongs(); }));
 }
 
 let lastWinBuzz = 0;

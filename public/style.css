@@ -439,7 +439,7 @@ label.inline input { width: auto; }
 .lobbylogo { display: block; max-height: 18cqh; max-width: 34cqw; object-fit: contain; margin-bottom: 2cqh; }
 .sidelogo { display: block; max-width: 100%; max-height: 70px; object-fit: contain; margin: 0 auto 6px; }
 .plogo { height: 28px; max-width: 120px; object-fit: contain; vertical-align: middle; margin-right: 8px; }
-.ptop .brand { display: flex; align-items: center; min-width: 0; }
+.ptop .brand:has(img) { display: flex; align-items: center; min-width: 0; }
 .ptop .brand .evtitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* pricing */
 .hlinks { display: flex; align-items: center; gap: 18px; }
@@ -458,3 +458,35 @@ label.inline input { width: auto; }
 .plan li::before { content: '✓'; position: absolute; left: 0; color: var(--good); font-weight: 800; }
 .plan button[disabled] { opacity: .75; cursor: default; }
 @media (max-width: 860px) { .plans { grid-template-columns: 1fr; max-width: 440px; margin-inline: auto; } }
+/* karaoke */
+.kstage { display: grid; grid-template-columns: 1.4fr 1fr; gap: 4cqw; width: 100%; height: 100%; align-items: center; padding: 0 3cqw; text-align: left; }
+.kmain { display: flex; flex-direction: column; gap: 1.5cqh; }
+.klabel { color: var(--muted); text-transform: uppercase; letter-spacing: .12em; font-weight: 800; font-size: max(13px, 2.6cqh); }
+.ksinger { font-size: min(13cqh, 7cqw); font-weight: 900; line-height: 1.05; color: var(--accent2); }
+.ksong { font-size: max(18px, 5cqh); font-weight: 700; }
+.kside { background: var(--panel); border-radius: 24px; padding: 3cqh 2cqw; display: flex; flex-direction: column; gap: 1.4cqh; max-height: 86cqh; overflow: hidden; }
+.knext { margin: 0; padding-left: 1.4em; display: grid; gap: 1.2cqh; font-size: max(15px, 3cqh); }
+.knext li small { display: block; color: var(--muted); font-size: .8em; }
+.knext li:first-child b { color: var(--accent); }
+.ksign { display: flex; gap: 14px; align-items: center; margin-top: auto; font-size: max(14px, 2.6cqh); }
+.kqr { background: #fff; border-radius: 10px; padding: 6px; width: min(16cqh, 9cqw); flex-shrink: 0; }
+.kqr svg { display: block; width: 100%; height: auto; }
+.kq { display: grid; gap: 6px; max-height: 32vh; overflow: auto; }
+.kq-row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 10px; align-items: center; background: var(--panel2); border-radius: 10px; padding: 6px 10px; }
+.kq-row.now { outline: 2px solid var(--accent); }
+.kq-n { font-weight: 800; color: var(--muted); text-align: center; }
+.kq-who { display: grid; min-width: 0; } .kq-who small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kq-yt { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.kq-yt a { color: var(--accent2); white-space: nowrap; } .kq-yt .ok { color: var(--good); white-space: nowrap; }
+.kq-yt .kq-link { width: 170px; padding: 6px 8px; font-size: 13px; }
+.kq-btns { display: flex; gap: 4px; } .kq-btns button { padding: 6px 9px; }
+.kideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 10px 0; font-size: 13px; }
+.kidea ol { margin: 6px 0 0; padding-left: 1.4em; color: var(--muted); }
+.ksongs { display: grid; gap: 6px; max-height: 46vh; overflow: auto; margin: 8px 0; }
+.ksongs button { text-align: left; padding: 10px 12px; font-weight: 500; }
+.ksongs button.on { background: var(--accent); color: #fff; }
+.ksongs .kcat { color: var(--muted); font-size: 13px; font-weight: 700; margin-top: 6px; }
+.kmine { background: var(--panel); border-radius: 14px; padding: 14px; display: grid; gap: 6px; margin: 10px 0; }
+@media (max-width: 760px) { .kq-row { grid-template-columns: 28px 1fr; } .kq-yt, .kq-btns { grid-column: 2; } }
+.kstage .qhead { text-align: left; }
+.result.good + .center { margin-top: 12px; }

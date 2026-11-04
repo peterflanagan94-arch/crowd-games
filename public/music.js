@@ -341,6 +341,7 @@
       if (cmd === 'stop' && screenCore) { screenCore.stop(); showScreen(false); }
     }
   }
+  new ResizeObserver(() => { if (!$('#ytScreen').hidden) showScreen(true); }).observe($('#stage'));
   function showScreen(on) {
     const box = $('#ytScreen'); if (!box) return;
     if (on) {

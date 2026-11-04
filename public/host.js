@@ -429,6 +429,7 @@ function primaryAction() {
   if (g.type === 'bingo' && (g.mode === 'numbers' || window.musicCanPlay?.())) return () => (g.mode === 'music' ? window.musicNext() : send('host:call'));
   if (g.type === 'couple' && g.phase !== 'final') return () => send('host:coupleNext');
   if (g.type === 'challenge' && g.phase === 'signup') return () => send('host:draw');
+  if (g.type === 'karaoke') return () => send('host:karaoke', { act: 'next' });
   if (g.type === 'raffle' && g.phase !== 'spinning') return () => { wheelSound.unlock(); send('host:spin'); };
   if (g.type === 'poll') return () => (g.open || g.index + 1 >= g.of ? send('host:pollOpen', { open: !g.open }) : send('host:pollNext'));
   return null;
@@ -442,13 +443,19 @@ function renderControls() {
   document.querySelectorAll('[data-pane]').forEach((p) => {
     const name = p.dataset.pane;
     const show = g
-      ? (name === 'liveMusic' && g.type === 'bingo' && g.mode === 'music') || (name === 'liveCouple' && g.type === 'couple' && g.phase === 'answering')
+      ? (name === 'liveMusic' && g.type === 'bingo' && g.mode === 'music') || (name === 'liveKaraoke' && g.type === 'karaoke') || (name === 'liveCouple' && g.type === 'couple' && g.phase === 'answering')
       : name === tab;
     p.classList.toggle('hidden', !show);
   });
   if (!g) { live.innerHTML = ''; return; }
   let html = '';
-  if (g.type === 'raffle') {
+  if (g.type === 'karaoke') {
+    html += `<button class="primary" data-act="kNext">${g.current ? (g.queue.length ? '🎤 Next singer' : '✓ Finish this song') : '🎤 First singer'} <span class="muted">(space)</span></button>`;
+    if (g.current?.yt) html += `<button data-act="kVideo">${g.video ? '⏹ Stop video' : '▶ Play video'}</button>`;
+    html += `<label class="inline"><input type="checkbox" data-act="kOpen" ${g.open ? 'checked' : ''} /> Sign-ups open</label>`;
+    html += `<label class="inline"><input type="checkbox" data-act="kAuto" ${g.autoVideo ? 'checked' : ''} /> Play videos automatically</label>`;
+    html += `<span class="muted">${g.queue.length} waiting · ${g.played} sung</span>`;
+  } else if (g.type === 'raffle') {
     const again = g.phase === 'won' ? (g.mode === 'raffle' && g.nextPrize ? `Draw next prize` : 'Spin again') : '🎡 Spin the wheel';
     if (g.phase !== 'spinning') html += `<button class="primary" data-act="spin">${again} <span class="muted">(space)</span></button>`;
     if (g.phase === 'won' && g.mode === 'raffle') html += `<button data-act="redraw" title="Spin again for the same prize">🙋 Winner not here? Redraw</button>`;
@@ -482,6 +489,10 @@ function renderControls() {
   html += `<button data-act="end">End game</button>`;
   live.innerHTML = html;
   live.querySelector('[data-act=next]')?.addEventListener('click', () => send('host:next'));
+  live.querySelector('[data-act=kNext]')?.addEventListener('click', () => send('host:karaoke', { act: 'next' }));
+  live.querySelector('[data-act=kVideo]')?.addEventListener('click', () => send('host:karaoke', { act: 'video', on: !g.video }));
+  live.querySelector('[data-act=kOpen]')?.addEventListener('change', (e) => send('host:karaoke', { act: 'open', open: e.target.checked }));
+  live.querySelector('[data-act=kAuto]')?.addEventListener('change', (e) => send('host:karaoke', { act: 'autoVideo', on: e.target.checked }));
   live.querySelector('[data-act=spin]')?.addEventListener('click', () => { wheelSound.unlock(); send('host:spin'); });
   live.querySelector('[data-act=redraw]')?.addEventListener('click', () => { wheelSound.unlock(); send('host:redraw'); });
   live.querySelector('[data-act=draw]')?.addEventListener('click', () => send('host:draw'));
@@ -497,6 +508,7 @@ function renderControls() {
   live.querySelector('[data-act=end]').addEventListener('click', () => confirm('End this game and go back to the lobby?') && send('host:end'));
   if (g.type === 'bingo' && g.mode === 'music') renderSongPick();
   if (g.type === 'couple') renderCoupleEntry(g);
+  if (g.type === 'karaoke') window.karaokeQueue(g);
 }
 
 // DJ entry of the couple's answers. Picks aren't shown here (the big screen may be visible), only ✓.
@@ -557,6 +569,7 @@ function renderStage() {
   }
   if (g.type === 'challenge') return renderChallenge(st, g);
   if (g.type === 'raffle') return renderRaffle(st, g);
+  if (g.type === 'karaoke') return window.karaokeStage(st, g);
   if (g.type === 'couple') return renderCouple(st, g);
   if (g.type === 'poll') return renderPoll(st, g);
   if (g.type === 'quiz') return renderQuiz(st, g);

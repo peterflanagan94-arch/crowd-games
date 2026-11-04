@@ -28,6 +28,7 @@
         <button data-tab="poll">Crowd vote</button>
         <button data-tab="challenge">🎲 Volunteer draw</button>
         <button data-tab="raffle">🎡 Raffle &amp; wheel</button>
+        <button data-tab="karaoke">🎤 Karaoke</button>
       </span>
       <span id="liveBar" class="bar"></span>
       <span class="err" id="err"></span>
@@ -263,9 +264,29 @@
       <button class="primary" id="startRaffle">Start the wheel</button>
     </div>
 
+    <div class="pane hidden" data-pane="karaoke">
+      <div class="muted"><b>Karaoke:</b> guests pick a song on their phone and join the queue. The big screen shows who's singing and who's up next, and phones buzz when it's their turn. Play a lyrics video from YouTube on the big screen, or use your own karaoke software for the backing track.</div>
+      <div class="row2">
+        <label>Title on screen <input id="kTitle" maxlength="80" placeholder="e.g. Karaoke at The Crown" /></label>
+        <label>Songs each guest can have in the queue <select id="kPer"><option>1</option><option>2</option><option>3</option></select></label>
+      </div>
+      <details class="library" id="kIdeas"><summary>💡 What's popular: <span class="muted">117 crowd-pleasers guests can pick from</span></summary><div id="kIdeasBody" class="kideas"></div></details>
+      <button class="primary" id="startKaraoke">Open karaoke sign-ups</button>
+    </div>
+
     <!-- live panes -->
     <div class="pane hidden" data-pane="liveCouple">
       <div class="bar" id="coupleEntry"></div>
+    </div>
+    <div class="pane hidden" data-pane="liveKaraoke">
+      <div class="kq" id="kQueue"></div>
+      <form class="bar" id="kAdd">
+        <input id="kAddSinger" placeholder="Singer" maxlength="60" style="max-width:180px" />
+        <input id="kAddSong" placeholder="Artist - Song" maxlength="100" list="kSongList" style="flex:1;min-width:200px" />
+        <input id="kAddLink" placeholder="YouTube link (optional)" style="max-width:220px" />
+        <button>+ Add singer</button>
+      </form>
+      <datalist id="kSongList"></datalist>
     </div>
     <div class="pane hidden" data-pane="liveMusic">
       <div class="nowplaying" id="nowPlaying" hidden></div>
@@ -288,7 +309,9 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/host.js"></script>
   <div class="ytscreen" id="ytScreen" hidden><div class="ytscreen-player"><div id="ytScreenPlayer"></div></div><div class="ytscreen-cap" id="ytScreenCap">♪ Listen carefully… find it on your card!</div></div>
+  <div class="ytscreen kscreen" id="kScreen" hidden><div class="ytscreen-player"><div id="kPlayer"></div></div><div class="ytscreen-cap" id="kCap"></div></div>
   <script src="/ytcore.js"></script>
+  <script src="/karaoke.js"></script>
   <script src="/music.js"></script>
 </body>
 </html>
