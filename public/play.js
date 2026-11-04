@@ -209,10 +209,11 @@ const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
 function renderQuiz(g, me) {
   const m = $('#main');
   const isHl = g.variant === 'hl';
+  const isEmoji = g.variant === 'emoji';
   const shapes = isHl ? HL_SHAPES : SHAPES;
   const unit = isHl && g.hl?.unit ? ` (${esc(g.hl.unit)})` : '';
   if (g.phase === 'intro') {
-    m.innerHTML = `<div class="center"><div class="huge">🧠</div><div class="big">${isHl ? 'Higher or lower is starting' : 'Quiz is starting'}</div><p class="muted">Answer fast for extra points.</p></div>`;
+    m.innerHTML = `<div class="center"><div class="huge">${isEmoji ? '😀' : '🧠'}</div><div class="big">${isHl ? 'Higher or lower is starting' : isEmoji ? 'Emoji guess is starting' : 'Quiz is starting'}</div><p class="muted">Answer fast for extra points.</p></div>`;
     return;
   }
   if (g.phase === 'final') {
@@ -229,7 +230,7 @@ function renderQuiz(g, me) {
       const note = { any: 'An Ace! Every guess scores.', none: 'A pair! Nobody scores this round.' }[g.hl.outcome] || `It was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>`;
       detail = `<div class="pcards">${cardHtml(g.hl.a.card, 'sm')}${cardHtml(g.hl.b.card, 'sm')}</div><p>${note}</p>`;
     } else {
-      detail = `<p>The answer was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p>`;
+      detail = `${isEmoji ? `<div class="pemoji">${esc(g.question)}</div>` : ''}<p>The answer was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>${g.note ? `<br><span class="muted">${esc(g.note)}</span>` : ''}${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p>`;
     }
     m.innerHTML = `<div class="result ${cls}"><div class="big">${msg}</div>${detail}</div>
       <div class="center muted">You're #${me.rank} with ${me.score} points</div>`;
@@ -244,8 +245,8 @@ function renderQuiz(g, me) {
     : isHl
     ? `<div class="center muted">${esc(g.hl.a.label)}: <b style="color:var(--text)">${fmtNum(g.hl.a.value)}</b>${unit}</div>
        <div class="center" style="font-weight:800;font-size:20px">Higher or lower?<br><span style="color:var(--accent2)">${esc(g.hl.b.label)}</span></div>`
-    : `${g.cat ? `<div class="center"><span class="qcat">${esc(g.cat)}</span></div>` : ''}<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`;
-  m.innerHTML = `<div class="center muted">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
+    : `${g.cat ? `<div class="center"><span class="qcat">${esc(g.cat)}</span></div>` : ''}${isEmoji ? `<div class="pemoji">${esc(g.question)}</div>` : `<div class="center" style="font-weight:700;font-size:18px">${esc(g.question)}</div>`}`;
+  m.innerHTML = `<div class="center muted">${isHl || isEmoji ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
     ${qHtml}
     <div class="ptimer"><div id="bar"></div></div>
     <div class="pans" style="${isHl ? 'grid-template-columns:1fr' : ''}">${g.options.map((o, i) => `<button class="c${isHl ? 3 - i * 3 : i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>

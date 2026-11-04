@@ -39,6 +39,27 @@ server.listen(0, async () => {
   await wait(100);
   assert.equal(latest.get('Ana').game.phase, 'final');
 
+  // Emoji guess: options come from the same category, the note shows only on reveal.
+  const puzzles = [{ e: '💜🌧️', a: 'Purple Rain', note: 'Prince', cat: '📼 80s Songs' }, { e: '🦁👑', a: 'The Lion King', cat: '🏰 Disney & Pixar' }];
+  assert.ok((await call(host, 'host:startEmoji', { puzzles, seconds: 10 })).ok);
+  assert.equal(room.game.variant, 'emoji');
+  for (const q of room.game.questions) {
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4, 'no duplicate options');
+    assert.equal(q.options[q.answer], puzzles.find((p) => p.e === q.q).a);
+  }
+  await call(host, 'host:next');
+  await wait(100);
+  assert.equal(latest.get('Ana').game.note, null, 'note hidden during the question');
+  const eq = room.game.questions[room.game.index];
+  players[0].emit('player:answer', { choice: eq.answer });
+  players[1].emit('player:answer', { choice: (eq.answer + 1) % 4 });
+  await wait(150);
+  assert.equal(room.game.phase, 'reveal');
+  assert.equal(latest.get('Ana').game.note, eq.note);
+  assert.ok(latest.get('Ana').game.lastPoints > 0 && latest.get('Ben').game.lastPoints === 0);
+  assert.ok((await call(host, 'host:startEmoji', { puzzles: [] })).error, 'empty emoji round rejected');
+
   // Number bingo
   await call(host, 'host:startBingo', { mode: 'numbers', pattern: 'line' });
   const card = ana.card;

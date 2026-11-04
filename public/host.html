@@ -21,6 +21,7 @@
         <button data-tab="event" class="on">Event</button>
         <button data-tab="couple" class="wedding-only">💍 Mr &amp; Mrs</button>
         <button data-tab="quiz">Quiz</button>
+        <button data-tab="emoji">😀 Emoji guess</button>
         <button data-tab="bingo">Bingo</button>
         <button data-tab="music">Music bingo</button>
         <button data-tab="hl">Higher or lower</button>
@@ -78,6 +79,21 @@
         <button id="loadWeddingTrivia">💐 Wedding trivia</button>
       </div>
       <button class="primary" id="startQuiz">Start quiz</button>
+    </div>
+
+    <div class="pane hidden" data-pane="emoji">
+      <div class="muted"><b>Emoji guess:</b> the big screen shows a few emojis and guests pick what they spell out: a film, a song, a phrase. Scoring works like the quiz, with points for speed. Pick one or more categories, or <b>All categories</b> for a mixed round.</div>
+      <div class="catgrid" id="emojiGrid"></div>
+      <div class="row2">
+        <label>Rounds <select id="emojiN"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option></select></label>
+        <label>Seconds per round <input id="emojiSecs" type="number" min="5" max="120" value="20" /></label>
+      </div>
+      <div class="bar"><button class="secondary" id="loadEmoji">🎲 Load puzzles</button><span class="muted" id="emojiNote"></span></div>
+      <details><summary class="muted">Edit puzzles, or write your own</summary>
+        <div class="muted" style="margin:8px 0">One puzzle per line: emojis | answer | optional note shown after the reveal (such as the artist). A line starting with # sets the category for the lines below it. Wrong answers are picked from the other answers in the same category.</div>
+        <textarea id="emojiText" placeholder="# 🏰 Disney &amp; Pixar&#10;🦁👑 | The Lion King&#10;# 📼 80s Songs&#10;💜🌧️ | Purple Rain | Prince"></textarea>
+      </details>
+      <button class="primary" id="startEmoji">Start emoji guess</button>
     </div>
 
     <div class="pane hidden" data-pane="bingo">

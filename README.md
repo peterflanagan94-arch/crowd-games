@@ -18,6 +18,7 @@ Wedding packs:
 
 **Games**
 - **Quiz:** timed multiple choice. You get 500 points for a right answer plus up to 500 for speed, and a leaderboard shows after each question. There are 186 built-in questions in 13 categories: General Knowledge, Disney, Films, Music, Pop Culture, History, Geography, TV, Sport, Food & Drink, Animals, 80s & 90s Throwback and Christmas. Pick one or more, or choose **All categories** for a mixed round. Answer order is shuffled every time, and you can edit questions or write your own.
+- **Emoji guess:** the big screen shows a few emojis and guests pick what they spell out from four choices. There are 210 built-in puzzles in 11 categories: Disney & Pixar, Films, TV Shows, Musicals, Pop Hits, 80s Songs, 90s Songs, 2000s Songs, Christmas Songs, Christmas Films and Phrases & Sayings. Songs show the artist after the reveal. Scoring works like the quiz, and you can edit the puzzles or add your own as `emojis | answer | note`.
 - **Bingo:** classic 75-number bingo. Every phone gets its own card. Tap numbers to mark them and hit BINGO!, and the server checks the claim against the calls.
 - **Music bingo:** paste a playlist and each card gets song titles (4x4 for 16 or more songs, 5x5 for 24 or more). Tap songs in the DJ panel as you play them. You can hide titles on the big screen so the crowd has to recognise each song by ear.
 

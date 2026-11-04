@@ -136,6 +136,61 @@ $('#startQuiz').onclick = async () => {
   try { localStorage.setItem('cg-quiz', $('#quizText').value); } catch {}
   send('host:startQuiz', { questions, seconds: +$('#quizSecs').value });
 };
+// ---------- emoji guess ----------
+const emojiCats = new Set(store.get('cg-emoji-cats') || []);
+let allEmojiCats = [];
+fetch('/api/emoji-categories').then((r) => r.json()).then((cats) => { allEmojiCats = cats; renderEmojiCats(); });
+function renderEmojiCats() {
+  const all = !emojiCats.size;
+  $('#emojiGrid').innerHTML = `<button class="cat ${all ? 'on' : ''}" data-cat="">🌍 All categories<small>mixed</small></button>` +
+    allEmojiCats.map((c) => `<button class="cat ${emojiCats.has(c.id) ? 'on' : ''}" data-cat="${c.id}">${c.emoji} ${esc(c.name)}<small>${c.count} puzzles</small></button>`).join('');
+  $('#emojiGrid').querySelectorAll('[data-cat]').forEach((b) => (b.onclick = () => {
+    const id = b.dataset.cat;
+    if (!id) emojiCats.clear();
+    else emojiCats.has(id) ? emojiCats.delete(id) : emojiCats.add(id);
+    store.set('cg-emoji-cats', [...emojiCats]);
+    $('#emojiText').value = ''; // a new pick means a fresh set of puzzles
+    renderEmojiCats();
+  }));
+  const picked = all ? 'all categories' : allEmojiCats.filter((c) => emojiCats.has(c.id)).map((c) => c.name).join(', ');
+  $('#emojiNote').textContent = `Mixing ${picked}`;
+}
+function parseEmoji(text) {
+  let cat = '';
+  const out = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('#')) { cat = line.replace(/^#\s*/, ''); continue; }
+    const [e, a, note] = line.split('|').map((x) => x.trim());
+    if (e && a) out.push({ e, a, note: note || '', cat });
+  }
+  return out;
+}
+function emojiToText(list) {
+  let cat = null;
+  return list.map((p) => {
+    const head = p.cat !== cat ? `${(cat = p.cat) ? `# ${p.cat}\n` : ''}` : '';
+    return `${head}${p.e} | ${p.a}${p.note ? ` | ${p.note}` : ''}`;
+  }).join('\n');
+}
+async function loadEmoji() {
+  const list = await fetch(`/api/emoji-pack?cats=${[...emojiCats].join(',')}&n=${$('#emojiN').value}`).then((r) => r.json());
+  // Group by category in the editor so it's easy to scan; the game still plays them shuffled.
+  const sorted = [...list].sort((x, y) => x.cat.localeCompare(y.cat));
+  $('#emojiText').value = emojiToText(sorted);
+  $('#emojiNote').textContent = `Loaded ${list.length} puzzles. Press Start, or open the editor below to tweak them.`;
+}
+$('#loadEmoji').onclick = loadEmoji;
+$('#startEmoji').onclick = async () => {
+  if (!$('#emojiText').value.trim()) await loadEmoji();
+  const puzzles = parseEmoji($('#emojiText').value);
+  if (!puzzles.length) return ($('#err').textContent = 'No puzzles found. Use one line per puzzle: emojis | answer.');
+  // Shuffle so grouped categories in the editor still come out mixed.
+  for (let i = puzzles.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [puzzles[i], puzzles[j]] = [puzzles[j], puzzles[i]]; }
+  send('host:startEmoji', { puzzles, seconds: +$('#emojiSecs').value });
+};
+
 // ---------- event + wedding packs ----------
 const names = () => ({ A: state?.event.a || 'Partner 1', B: state?.event.b || 'Partner 2' });
 const fill = (t) => t.replace(/\{(A|B)\}/g, (_, k) => names()[k]);
@@ -335,9 +390,10 @@ function renderControls() {
     if (g.of > 1) html += `<button class="secondary" data-act="pollNext" ${g.index + 1 >= g.of ? 'disabled' : ''}>Next question (${g.index + 1}/${g.of})</button>`;
     html += `<span class="muted">${g.total} votes</span>`;
   } else if (g.type === 'quiz') {
-    const label = { intro: g.variant === 'hl' ? 'Start first round' : 'Start first question', question: 'Reveal answer', reveal: g.index + 1 >= g.total ? 'Final results' : g.variant === 'hl' ? 'Next round' : 'Next question' }[g.phase];
+    const rounds = g.variant !== 'quiz';
+    const label = { intro: rounds ? 'Start first round' : 'Start first question', question: 'Reveal answer', reveal: g.index + 1 >= g.total ? 'Final results' : rounds ? 'Next round' : 'Next question' }[g.phase];
     if (label) html += `<button class="primary" data-act="next">${label} <span class="muted">(space)</span></button>`;
-    html += `<span class="muted">${g.variant === 'hl' ? 'Round' : 'Question'} ${Math.max(0, g.index + 1)} of ${g.total}</span>`;
+    html += `<span class="muted">${rounds ? 'Round' : 'Question'} ${Math.max(0, g.index + 1)} of ${g.total}</span>`;
   } else {
     if (g.mode === 'numbers') html += `<button class="primary" data-act="call">Call next number <span class="muted">(space)</span></button>`;
     html += `<select data-act="pattern">${['line', 'two', 'full'].map((p) => `<option value="${p}" ${p === g.pattern ? 'selected' : ''}>${{ line: 'One line', two: 'Two lines', full: 'Full house' }[p]}</option>`).join('')}</select>`;
@@ -426,8 +482,12 @@ function renderStage() {
 
 function renderQuiz(st, g) {
   const isHl = g.variant === 'hl';
+  const isEmoji = g.variant === 'emoji';
+  const rounds = isHl || isEmoji;
   if (g.phase === 'intro') {
-    st.innerHTML = `<div class="center"><div class="qhead">Get your phones ready</div><div class="qtext">${isHl ? 'Higher or lower?' : 'Quiz time!'}</div><div class="qhead" style="margin-top:2vh">${g.total} ${isHl ? 'rounds' : 'questions'} · ${state.players.length} players</div></div>`;
+    const title = isHl ? 'Higher or lower?' : isEmoji ? '😀 Guess the emoji!' : 'Quiz time!';
+    const sub = isEmoji ? '<div class="qhead" style="margin-top:1vh">Work out what the emojis spell, then tap the answer on your phone</div>' : '';
+    st.innerHTML = `<div class="center"><div class="qhead">Get your phones ready</div><div class="qtext">${title}</div>${sub}<div class="qhead" style="margin-top:2vh">${g.total} ${rounds ? 'rounds' : 'questions'} · ${state.players.length} players</div></div>`;
     return;
   }
   if (g.phase === 'final') { st.innerHTML = leaderboardHtml('🏆 Final scores', 10); return; }
@@ -440,10 +500,11 @@ function renderQuiz(st, g) {
     return `<div class="opt c${isHl ? 3 - i * 3 : i} ${cls}"><span class="shape">${isHl ? ['▲', '▼'][i] : SHAPES[i]}</span>${esc(o)}${count}</div>`;
   }).join('');
   const lb = g.phase === 'reveal' ? `<div style="margin-top:3vh;width:min(70vw,900px)">${leaderboardHtml('Leaderboard', 5)}</div>` : '';
-  const top = isHl ? hlCards(g.hl) : `<div class="qtext">${esc(q.q)}</div>`;
+  const top = isHl ? hlCards(g.hl) : isEmoji ? `<div class="emojiq">${esc(q.q)}</div>` : `<div class="qtext">${esc(q.q)}</div>`;
+  const note = g.note ? `<div class="hlnote">${esc(g.note)}</div>` : '';
   st.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center">
-    <div class="qhead">${isHl ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}${q.cat ? ` · <span class="qcat">${esc(q.cat)}</span>` : ''}</div>
-    ${top}
+    <div class="qhead">${rounds ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}${q.cat ? ` · <span class="qcat">${esc(q.cat)}</span>` : ''}</div>
+    ${top}${note}
     ${g.phase === 'question' ? `<div class="timer" id="timer"></div><div class="qhead">${g.answeredCount} answered</div>` : ''}
     <div class="opts">${opts}</div>${lb}</div>`;
   if (g.phase === 'question') {

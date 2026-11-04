@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES } = require('./quiz-sample');
 const { CATEGORIES, buildQuiz } = require('./quiz-packs');
+const { EMOJI_CATEGORIES, buildEmojiRound, emojiQuestions } = require('./emoji-packs');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -118,6 +119,13 @@ app.get('/api/quiz-pack', (req, res) => {
   const n = Math.min(100, Math.max(1, Number(req.query.n) || 10));
   res.json(buildQuiz(cats.length ? cats : CATEGORIES.map((c) => c.id), n, shuffle));
 });
+app.get('/api/emoji-categories', (_req, res) =>
+  res.json(EMOJI_CATEGORIES.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, count: c.items.length }))));
+app.get('/api/emoji-pack', (req, res) => {
+  const cats = String(req.query.cats || '').split(',').filter(Boolean);
+  const n = Math.min(100, Math.max(1, Number(req.query.n) || 10));
+  res.json(buildEmojiRound(cats.length ? cats : EMOJI_CATEGORIES.map((c) => c.id), n, shuffle));
+});
 app.get('/api/challenges', (_req, res) => res.json(CHALLENGES));
 
 const shuffle = (a) => {
@@ -179,6 +187,7 @@ function startQuiz(room, { questions, seconds }, variant = 'quiz') {
       answer: Number(q.answer),
       hl: q.hl,
       cat: q.cat ? clean(q.cat, 40) : null,
+      note: q.note ? clean(q.note, 120) : null, // shown after the reveal, e.g. the artist
       // Card rounds: "any" = every guess counts (an Ace with aces high-or-low), "none" = a pair, nobody scores.
       outcome: q.outcome === 'any' || q.outcome === 'none' ? q.outcome : null,
     }))
@@ -251,6 +260,17 @@ function quizAnswer(room, player, choice) {
   // Everyone online has answered: reveal early.
   const online = [...room.players.values()].filter((p) => p.sockets.size);
   if (online.length && online.every((p) => g.answers.has(p.id))) quizReveal(room);
+}
+
+// ---------- emoji guess ----------
+// Guests see a string of emojis and pick the film, song or phrase it spells out.
+function startEmoji(room, { puzzles, seconds }) {
+  const list = (Array.isArray(puzzles) ? puzzles : [])
+    .map((p) => ({ e: clean(p.e, 60), a: clean(p.a, 120), note: clean(p.note, 120), cat: clean(p.cat, 40) }))
+    .filter((p) => p.e && p.a)
+    .slice(0, 100);
+  if (!list.length) return 'Add at least one emoji puzzle.';
+  return startQuiz(room, { questions: emojiQuestions(list, shuffle), seconds: seconds || 20 }, 'emoji');
 }
 
 // ---------- higher or lower ----------
@@ -552,6 +572,7 @@ function hostView(room) {
         question: q ? { q: q.q, options: q.options, cat: q.cat } : null,
         hl: q?.hl ? hlView(q.hl, g.phase === 'reveal', q.outcome) : null,
         answer: g.phase === 'reveal' ? q.answer : null,
+        note: g.phase === 'reveal' ? q.note : null,
         answeredCount: g.answers.size, counts: g.phase === 'reveal' ? counts : null,
       },
     };
@@ -619,6 +640,7 @@ function playerView(room, p) {
         options: q ? q.options : null, question: q ? q.q : null, cat: q?.cat || null,
         myChoice: mine ? mine.choice : null,
         answer: g.phase === 'reveal' ? q.answer : null,
+        note: g.phase === 'reveal' ? q.note : null,
         lastPoints: g.phase === 'reveal' ? g.lastPoints[p.id] || 0 : null,
         top: g.phase === 'final' ? leaderboard(room).slice(0, 3) : null,
       },
@@ -693,6 +715,7 @@ io.on('connection', (socket) => {
     if (room.game?.type !== 'quiz') return 'No quiz running';
     quizAdvance(room);
   }));
+  socket.on('host:startEmoji', host((d) => startEmoji(room, d)));
   socket.on('host:startHigherLower', host((d) => startHigherLower(room, d)));
   socket.on('host:startPoll', host((d) => startPoll(room, d)));
   socket.on('host:pollNext', host(() => {
