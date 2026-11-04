@@ -105,33 +105,48 @@
     </div>
 
     <div class="pane hidden" data-pane="music">
-      <div class="muted">Build your song list: add your own music files so the app plays them, import a playlist, or paste one song per line ("Artist - Title"). You need 16 songs for a 4x4 card, or 24 or more for a 5x5 card.</div>
-      <div class="bar musicsrc">
-        <button id="addFiles">🎧 Add music files</button>
-        <button id="addFolder">📁 Add a folder</button>
-        <input type="file" id="fileIn" multiple accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" hidden />
-        <input type="file" id="folderIn" webkitdirectory multiple hidden />
-        <span class="muted" id="fileCount"></span>
-      </div>
-      <div class="dropzone" id="dropzone">…or drag music files here. They play from this computer and are never uploaded.</div>
-      <div class="bar">
-        <input id="playlistUrl" placeholder="Spotify or Apple Music playlist link" style="flex:1;min-width:220px" />
-        <button id="importPlaylist">Import titles</button>
-        <button id="importFile" title="CSV (e.g. from Exportify), M3U or TXT">Import a playlist file</button>
-        <input type="file" id="listIn" accept=".csv,.m3u,.m3u8,.txt,text/plain,text/csv" hidden />
-      </div>
-      <details class="library" id="library" open>
-        <summary>📚 Song library <span class="muted">Ready-made playlists. Add single songs, whole playlists, or a random mix.</span></summary>
+      <div class="muted">Build this game's song list from your own music, the playlist ideas, an imported playlist, or by typing one song per line ("Artist - Title"). You need 16 songs for a 4x4 card, or 24 or more for a 5x5 card.</div>
+      <details class="library mine" id="myMusic" open>
+        <summary>🎵 My music <span class="muted" id="mineCount"></span></summary>
+        <div class="dropzone" id="dropzone">Drag your songs or a whole folder here. They're saved in this browser on this computer, so they're ready for every game. Nothing is uploaded.</div>
+        <div class="bar musicsrc">
+          <button id="addFiles">🎧 Add songs</button>
+          <button id="addFolder">📁 Add a folder</button>
+          <input type="file" id="fileIn" multiple accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" hidden />
+          <input type="file" id="folderIn" webkitdirectory multiple hidden />
+          <span class="muted" id="fileCount"></span>
+        </div>
+        <div class="mine-body" id="mineBody" hidden>
+          <div class="bar">
+            <button id="mineRandom">🎲 Add</button>
+            <select id="mineN"><option>16</option><option selected>24</option><option>30</option><option>40</option><option>50</option></select>
+            <span class="muted">random songs from my music</span>
+            <button id="mineAll">Add all</button>
+            <button id="mineForget" class="danger-ghost">Remove all from this computer</button>
+          </div>
+          <input id="mineSearch" placeholder="Search my music…" />
+          <div class="libsongs" id="mineSongs"></div>
+        </div>
+      </details>
+      <details class="library" id="library">
+        <summary>💡 Playlist ideas <span class="muted">Themed lists to get you started. ♪ means you have that song in My music.</span></summary>
         <div class="libpacks" id="libPacks"></div>
         <div class="bar">
           <button id="libRandom">🎲 Add</button>
           <select id="libN"><option>16</option><option selected>24</option><option>30</option><option>40</option><option>50</option></select>
           <span class="muted" id="libRandomHint">random songs from all playlists</span>
           <button id="libAddAll" hidden>Add all from selected</button>
+          <label class="inline"><input type="checkbox" id="libOwned" /> Only songs I have</label>
         </div>
-        <input id="libSearch" placeholder="Search the library…" />
+        <input id="libSearch" placeholder="Search the ideas…" />
         <div class="libsongs" id="libSongs"></div>
       </details>
+      <div class="bar">
+        <input id="playlistUrl" placeholder="Import a Spotify or Apple Music playlist link" style="flex:1;min-width:220px" />
+        <button id="importPlaylist">Import titles</button>
+        <button id="importFile" title="CSV (e.g. from Exportify), M3U or TXT">Import a playlist file</button>
+        <input type="file" id="listIn" accept=".csv,.m3u,.m3u8,.txt,text/plain,text/csv" hidden />
+      </div>
       <div class="muted songlist-head">Songs in this game</div>
       <textarea id="songText" placeholder="Artist - Title&#10;Artist - Title"></textarea>
       <div class="bar"><button id="clearSongs">Clear list</button><span class="muted" id="songCount"></span></div>

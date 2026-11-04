@@ -27,16 +27,16 @@
     $('#songText').value = [...lines(), ...add].join('\n');
     updateCounts();
     window.renderLibSongs?.();
+    renderMine?.();
     return add.length;
   }
   function updateCounts() {
     const n = lines().length;
     const withFile = lines().filter((l) => !!fileFor(l)).length;
-    $('#songCount').textContent = n ? `${n} songs${n < 16 ? ` · need ${16 - n} more` : n < 24 ? ' · 4x4 cards' : ' · 5x5 cards'}` : '';
-    $('#fileCount').textContent = files.size ? `${files.size} music files loaded · ${withFile} in the list` : '';
+    $('#songCount').textContent = n ? `${n} songs${n < 16 ? ` · need ${16 - n} more` : n < 24 ? ' · 4x4 cards' : ' · 5x5 cards'}${files.size ? ` · ${withFile} with music` : ''}` : '';
   }
   $('#songText').addEventListener('input', updateCounts);
-  $('#clearSongs').onclick = () => { if (!lines().length || confirm('Clear the song list?')) { $('#songText').value = ''; updateCounts(); renderLibSongs(); } };
+  $('#clearSongs').onclick = () => { if (!lines().length || confirm('Clear the song list?')) { $('#songText').value = ''; updateCounts(); renderLibSongs(); renderMine(); } };
 
   // ---------- reading tags ----------
   function decodeText(bytes) {
@@ -73,24 +73,128 @@
     return fromName(file.name);
   }
 
-  async function addFiles(list) {
-    const audio = [...list].filter((f) => f.type.startsWith('audio/') || AUDIO_RE.test(f.name));
-    if (!audio.length) return;
-    const labels = [];
-    for (const f of audio) {
-      const l = (await labelFor(f)).slice(0, 100);
-      if (!l) continue;
-      files.set(key(l), f);
-      const tk = titleKey(l);
+  // ---------- My music: saved in this browser (IndexedDB), never uploaded ----------
+  const mine = new Map(); // key -> { key, label, size, added }
+  let dbp = null;
+  const db = () => (dbp ||= new Promise((res, rej) => {
+    const r = indexedDB.open('crowd-qr-music', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('songs', { keyPath: 'key' });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  async function store(mode, fn) {
+    const d = await db();
+    return new Promise((res, rej) => {
+      const t = d.transaction('songs', mode);
+      const req = fn(t.objectStore('songs'));
+      t.oncomplete = () => res(req?.result);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('aborted'));
+    });
+  }
+  function rebuildTitles() {
+    byTitle.clear();
+    for (const [k, f] of files) {
+      const tk = titleKey(mine.get(k)?.label || k);
       byTitle.set(tk, byTitle.has(tk) && byTitle.get(tk) !== f ? null : f);
-      labels.push(l);
     }
-    addLines(labels);
-    $('#playOpts').classList.add('has-files');
+  }
+  function register(rec, blob) {
+    mine.set(rec.key, { key: rec.key, label: rec.label, size: rec.size, added: rec.added });
+    files.set(rec.key, blob);
+  }
+  let storageOk = true;
+
+  function musicChanged() {
+    rebuildTitles();
+    $('#playOpts').classList.toggle('has-files', files.size > 0);
+    updateCounts();
+    renderMine();
     renderNow();
     window.renderSongPick?.();
     window.renderLibSongs?.();
   }
+
+  async function addFiles(list) {
+    const audio = [...list].filter((f) => f.type.startsWith('audio/') || AUDIO_RE.test(f.name));
+    if (!audio.length) return;
+    $('#fileCount').textContent = `Reading ${audio.length} songs…`;
+    const fresh = [];
+    let dupes = 0;
+    for (const f of audio) {
+      const label = (await labelFor(f)).slice(0, 100);
+      if (!label) continue;
+      const k = key(label);
+      if (mine.has(k) || fresh.some((r) => r.key === k)) { dupes++; continue; }
+      fresh.push({ key: k, label, blob: f, size: f.size, added: Date.now() });
+    }
+    for (const r of fresh) register(r, r.blob);
+    let saved = fresh.length;
+    if (fresh.length && storageOk) {
+      try {
+        await store('readwrite', (os) => { for (const r of fresh) os.put(r); });
+        navigator.storage?.persist?.().catch(() => {});
+      } catch (e) {
+        saved = 0;
+        $('#err').textContent = /quota/i.test(e?.name + e?.message) ? "This computer's browser storage is full, so these songs will only work until you close the page." : "This browser can't save songs (private window?), so they'll only work until you close the page.";
+      }
+    }
+    musicChanged();
+    const labels = fresh.map((r) => r.label);
+    const el = $('#fileCount');
+    el.innerHTML = `${saved ? `Saved ${saved} new songs to My music.` : fresh.length ? `Added ${fresh.length} songs for this session.` : ''}${dupes ? ` ${dupes} were already there.` : ''} ` +
+      (labels.length ? '<button id="addFresh">Add them to this game</button>' : '');
+    $('#addFresh')?.addEventListener('click', () => { const n = addLines(labels); flash(`Added ${n} songs to this game.`); el.textContent = ''; });
+  }
+
+  const fmtSize = (b) => (b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
+  function renderMine() {
+    const total = [...mine.values()].reduce((a, r) => a + (r.size || 0), 0);
+    $('#mineCount').textContent = mine.size ? `${mine.size} songs saved on this computer (${fmtSize(total)})` : 'Save your songs here once and use them in every game.';
+    $('#mineBody').hidden = !mine.size;
+    if (!mine.size) return;
+    const q = key($('#mineSearch').value);
+    const have = inList();
+    const list = [...mine.values()].filter((r) => !q || r.key.includes(q)).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+    $('#mineSongs').innerHTML = list.slice(0, 400).map((r) => {
+      const on = have.has(r.key);
+      return `<button data-song="${esc(r.label)}" class="${on ? 'on' : ''}" title="${on ? 'Remove from this game' : 'Add to this game'}"><span class="del" data-del="${esc(r.key)}" title="Remove from My music">✕</span>${on ? '✓' : '+'} ${esc(r.label)}</button>`;
+    }).join('') + (list.length > 400 ? `<span class="muted">…and ${list.length - 400} more. Search to narrow it down.</span>` : '') + (!list.length ? '<span class="muted">No songs match.</span>' : '');
+  }
+  function toggleSong(s, on) {
+    if (on) { $('#songText').value = lines().filter((l) => key(l) !== key(s)).join('\n'); updateCounts(); window.renderLibSongs?.(); renderMine(); }
+    else addLines([s]);
+  }
+  async function forget(keys) {
+    for (const k of keys) { mine.delete(k); files.delete(k); }
+    try { await store('readwrite', (os) => { for (const k of keys) os.delete(k); }); } catch {}
+    musicChanged();
+  }
+  $('#mineSongs').onclick = (e) => {
+    const d = e.target.closest('[data-del]');
+    if (d) { e.stopPropagation(); const r = mine.get(d.dataset.del); if (r && confirm(`Remove "${r.label}" from My music on this computer?`)) forget([r.key]); return; }
+    const b = e.target.closest('[data-song]'); if (b) toggleSong(b.dataset.song, b.classList.contains('on'));
+  };
+  $('#mineSearch').oninput = renderMine;
+  $('#mineAll').onclick = () => { const n = addLines([...mine.values()].map((r) => r.label)); flash(`Added ${n} songs.`); };
+  $('#mineRandom').onclick = () => {
+    const have = inList();
+    const left = shuffled([...mine.values()].filter((r) => !have.has(r.key)).map((r) => r.label));
+    const n = addLines(left.slice(0, +$('#mineN').value));
+    flash(n ? `Added ${n} random songs from My music.` : 'All of your songs are already in this game.');
+  };
+  $('#mineForget').onclick = () => { if (confirm(`Remove all ${mine.size} songs from My music on this computer? Your original files aren't touched.`)) forget([...mine.keys()]); };
+  const shuffled = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const inList = () => new Set(lines().map(key));
+
+  (async () => {
+    try {
+      const recs = await store('readonly', (os) => os.getAll());
+      for (const r of recs || []) register(r, r.blob);
+      musicChanged();
+    } catch { storageOk = false; renderMine(); }
+  })();
+
   $('#addFiles').onclick = () => $('#fileIn').click();
   $('#addFolder').onclick = () => $('#folderIn').click();
   $('#fileIn').onchange = (e) => { addFiles(e.target.files); e.target.value = ''; };
@@ -351,11 +455,11 @@
   // ---------- shared song library ----------
   let library = [];
   const selected = new Set();
-  const inList = () => new Set(lines().map(key));
   const pool = () => {
     const packs = selected.size ? library.filter((p) => selected.has(p.id)) : library;
     const seen = new Set();
-    return packs.flatMap((p) => p.songs).filter((s) => !seen.has(key(s)) && seen.add(key(s)));
+    const owned = $('#libOwned').checked;
+    return packs.flatMap((p) => p.songs).filter((s) => !seen.has(key(s)) && seen.add(key(s)) && (!owned || fileFor(s)));
   };
   function renderLibrary() {
     $('#libPacks').innerHTML = library.map((p) => `<button data-pack="${p.id}" class="${selected.has(p.id) ? 'on' : ''}">${p.emoji} ${esc(p.name)} <span class="muted">${p.songs.length}</span></button>`).join('');
@@ -382,21 +486,19 @@
   $('#libSongs').onclick = (e) => {
     const b = e.target.closest('[data-song]'); if (!b) return;
     const s = b.dataset.song;
-    if (b.classList.contains('on')) { $('#songText').value = lines().filter((l) => key(l) !== key(s)).join('\n'); updateCounts(); }
-    else addLines([s]);
-    renderLibSongs();
+    toggleSong(s, b.classList.contains('on'));
   };
   $('#libSearch').oninput = renderLibSongs;
+  $('#libOwned').onchange = renderLibSongs;
   $('#libAddAll').onclick = () => { const n = addLines(pool()); flash(`Added ${n} songs.`); renderLibSongs(); };
   $('#libRandom').onclick = () => {
     const have = inList();
     const left = pool().filter((s) => !have.has(key(s)));
-    for (let i = left.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [left[i], left[j]] = [left[j], left[i]]; }
-    const n = addLines(left.slice(0, +$('#libN').value));
+    const n = addLines(shuffled(left).slice(0, +$('#libN').value));
     flash(n ? `Added ${n} random songs.` : 'Every song from those playlists is already in the list.');
     renderLibSongs();
   };
-  $('#songText').addEventListener('input', () => renderLibSongs());
+  $('#songText').addEventListener('input', () => { renderLibSongs(); renderMine(); });
   fetch('/api/music-library').then((r) => r.json()).then((d) => { library = Array.isArray(d) ? d : []; renderLibrary(); }).catch(() => { $('#library').hidden = true; });
 
   updateCounts();

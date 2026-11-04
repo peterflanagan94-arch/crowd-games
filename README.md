@@ -14,7 +14,8 @@ Wedding packs:
 - **Wedding trivia:** 10 ready-to-go questions.
 - **Who's most likely to…?:** a quick-fire series of votes where guests choose between the two partners.
 - **Couple higher or lower:** a template for numbers such as years together or guests at the wedding.
-- **Song library:** 12 ready-made music bingo playlists (floor-fillers, 80s to 2020s, pub singalongs, disco & Motown, dance, rock, Disney & musicals, Christmas), about 330 songs. Hosts add single songs, whole playlists, or a random mix. Edit `music-library.js` to add playlists. Titles only: hosts bring their own audio files, which are matched to titles automatically.
+- **My music:** hosts drag their songs or a folder in once. They're saved in that browser (IndexedDB) on that computer, never uploaded, and ready for every game: add single songs, all, or a random mix.
+- **Playlist ideas:** 12 themed title lists (floor-fillers, 80s to 2020s, pub singalongs, disco & Motown, dance, rock, Disney & musicals, Christmas), about 330 songs, marked ♪ where the host has the song in My music. Edit `music-library.js` to add lists.
 
 **Games**
 - **Quiz:** timed multiple choice. You get 500 points for a right answer plus up to 500 for speed, and a leaderboard shows after each question. There are 186 built-in questions in 13 categories: General Knowledge, Disney, Films, Music, Pop Culture, History, Geography, TV, Sport, Food & Drink, Animals, 80s & 90s Throwback and Christmas. Pick one or more, or choose **All categories** for a mixed round. Answer order is shuffled every time, and you can edit questions or write your own.

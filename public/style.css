@@ -379,3 +379,11 @@ details summary { cursor: pointer; }
 .libsongs button { text-align: left; font-weight: 500; padding: 7px 10px; font-size: 13px; }
 .libsongs button.on { background: var(--accent2); color: #001; }
 .songlist-head { font-weight: 600; margin-bottom: -4px; }
+.library.mine { border-color: #29e0ff33; }
+.mine-body { display: grid; gap: 10px; }
+.libsongs .del { float: right; opacity: .5; padding: 0 2px 0 8px; }
+.libsongs .del:hover { opacity: 1; color: #ff6b8b; }
+.danger-ghost { background: transparent; border: 1px solid #ff6b8b55; color: #ff8fa6; }
+label.inline { display: flex; gap: 6px; align-items: center; }
+label.inline input { width: auto; }
+.mine-body[hidden], .library [hidden] { display: none !important; }
