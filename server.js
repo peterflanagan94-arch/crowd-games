@@ -901,6 +901,7 @@ io.on('connection', (socket) => {
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Crowd QR Games running: http://localhost:${PORT}  (LAN: http://${lanIp()}:${PORT})`);
+    if (process.env.YT_VERIFY === '1') require('./tools/yt-verify')().catch((e) => console.log('ytv failed', e.message));
     // Optional check that playlist import still works against the live services.
     for (const url of (process.env.PLAYLIST_SELFTEST || '').split(/\s+/).filter(Boolean)) {
       importPlaylist(url)
