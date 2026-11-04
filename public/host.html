@@ -120,8 +120,21 @@
         <button id="importFile" title="CSV (e.g. from Exportify), M3U or TXT">Import a playlist file</button>
         <input type="file" id="listIn" accept=".csv,.m3u,.m3u8,.txt,text/plain,text/csv" hidden />
       </div>
+      <details class="library" id="library" open>
+        <summary>📚 Song library <span class="muted">Ready-made playlists. Add single songs, whole playlists, or a random mix.</span></summary>
+        <div class="libpacks" id="libPacks"></div>
+        <div class="bar">
+          <button id="libRandom">🎲 Add</button>
+          <select id="libN"><option>16</option><option selected>24</option><option>30</option><option>40</option><option>50</option></select>
+          <span class="muted" id="libRandomHint">random songs from all playlists</span>
+          <button id="libAddAll" hidden>Add all from selected</button>
+        </div>
+        <input id="libSearch" placeholder="Search the library…" />
+        <div class="libsongs" id="libSongs"></div>
+      </details>
+      <div class="muted songlist-head">Songs in this game</div>
       <textarea id="songText" placeholder="Artist - Title&#10;Artist - Title"></textarea>
-      <div class="bar"><button id="loadFloorFillers">🎉 Load 30 classic floor-fillers</button><button id="clearSongs">Clear list</button><span class="muted" id="songCount"></span></div>
+      <div class="bar"><button id="clearSongs">Clear list</button><span class="muted" id="songCount"></span></div>
       <div class="row2 playopts" id="playOpts">
         <label>When a song is called, play
           <select id="playMode"><option value="clip">a clip from the chorus</option><option value="full">the full song</option><option value="none">nothing (I'll play it from my decks)</option></select>

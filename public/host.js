@@ -264,7 +264,6 @@ $('#loadCoupleQuiz').onclick = async () => {
   alert('Template loaded. Edit the answers with the couple before the night. The * marks the correct answer, so move it to the right line.');
 };
 $('#loadWeddingTrivia').onclick = async () => { $('#quizText').value = quizToText((await getPack()).trivia); };
-$('#loadFloorFillers').onclick = async () => { $('#songText').value = (await getPack()).floorFillers.join('\n'); $('#songText').dispatchEvent(new Event('input')); };
 $('#loadCoupleHl').onclick = async () => {
   $('#hlMode').value = 'list'; $('#hlMode').onchange();
   $('#hlText').value = (await getPack()).coupleHigherLower.map((i) => `${fill(i.label)} | ${i.value}`).join('\n');

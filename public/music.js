@@ -3,8 +3,14 @@
    Loaded after host.js and shares its globals (state, socket, send, $, esc). */
 (() => {
   const AUDIO_RE = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/i;
-  const files = new Map(); // normalised label -> File
-  const norm = (s) => String(s).replace(/[\u0000-\u001f]/g, '').trim().slice(0, 100).toLowerCase();
+  const files = new Map(); // matching key -> File
+  const byTitle = new Map(); // title-only key -> File (null when two files share a title)
+  // Loose key so "Don’t Stop Me Now" matches "Dont Stop Me Now" and "Beyoncé" matches "Beyonce".
+  const key = (s) => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, 'and')
+    .replace(/\s(ft|feat|featuring)\.?\s[^-]*/g, ' ').replace(/[^a-z0-9]+/g, '');
+  const titleKey = (s) => key(String(s).split(' - ').slice(1).join(' - ') || s);
+  const norm = key;
+  const fileFor = (label) => files.get(key(label)) || byTitle.get(titleKey(label)) || null;
   const settings = () => ({ mode: $('#playMode').value, clip: +$('#clipLen').value, auto: $('#autoCall').checked });
   const saveSettings = () => { try { localStorage.setItem('cg-music', JSON.stringify(settings())); } catch {} };
   try {
@@ -20,16 +26,17 @@
     const add = list.map((s) => s.trim()).filter((s) => s && !have.has(norm(s)) && have.add(norm(s)));
     $('#songText').value = [...lines(), ...add].join('\n');
     updateCounts();
+    window.renderLibSongs?.();
     return add.length;
   }
   function updateCounts() {
     const n = lines().length;
-    const withFile = lines().filter((l) => files.has(norm(l))).length;
+    const withFile = lines().filter((l) => !!fileFor(l)).length;
     $('#songCount').textContent = n ? `${n} songs${n < 16 ? ` · need ${16 - n} more` : n < 24 ? ' · 4x4 cards' : ' · 5x5 cards'}` : '';
     $('#fileCount').textContent = files.size ? `${files.size} music files loaded · ${withFile} in the list` : '';
   }
   $('#songText').addEventListener('input', updateCounts);
-  $('#clearSongs').onclick = () => { if (!lines().length || confirm('Clear the song list?')) { $('#songText').value = ''; updateCounts(); } };
+  $('#clearSongs').onclick = () => { if (!lines().length || confirm('Clear the song list?')) { $('#songText').value = ''; updateCounts(); renderLibSongs(); } };
 
   // ---------- reading tags ----------
   function decodeText(bytes) {
@@ -73,13 +80,16 @@
     for (const f of audio) {
       const l = (await labelFor(f)).slice(0, 100);
       if (!l) continue;
-      files.set(norm(l), f);
+      files.set(key(l), f);
+      const tk = titleKey(l);
+      byTitle.set(tk, byTitle.has(tk) && byTitle.get(tk) !== f ? null : f);
       labels.push(l);
     }
     addLines(labels);
     $('#playOpts').classList.add('has-files');
     renderNow();
     window.renderSongPick?.();
+    window.renderLibSongs?.();
   }
   $('#addFiles').onclick = () => $('#fileIn').click();
   $('#addFolder').onclick = () => $('#folderIn').click();
@@ -164,9 +174,9 @@
   let seen = false;
 
   const game = () => (state?.game?.type === 'bingo' && state.game.mode === 'music' ? state.game : null);
-  const itemFile = (it) => files.get(norm(it.label));
+  const itemFile = (it) => fileFor(it.label);
   window.musicAudio = audio; // handy for debugging
-  window.musicHasFile = (label) => files.has(norm(label));
+  window.musicHasFile = (label) => !!fileFor(label);
   window.musicCanPlay = () => !!game() && settings().mode !== 'none' && game().items.some(itemFile);
   window.musicNext = () => {
     const g = game(); if (!g) return;
@@ -337,6 +347,57 @@
   $('#nowPlaying').addEventListener('input', (e) => {
     if (e.target.dataset.np === 'vol') { vol = +e.target.value; audio.volume = vol; }
   });
+
+  // ---------- shared song library ----------
+  let library = [];
+  const selected = new Set();
+  const inList = () => new Set(lines().map(key));
+  const pool = () => {
+    const packs = selected.size ? library.filter((p) => selected.has(p.id)) : library;
+    const seen = new Set();
+    return packs.flatMap((p) => p.songs).filter((s) => !seen.has(key(s)) && seen.add(key(s)));
+  };
+  function renderLibrary() {
+    $('#libPacks').innerHTML = library.map((p) => `<button data-pack="${p.id}" class="${selected.has(p.id) ? 'on' : ''}">${p.emoji} ${esc(p.name)} <span class="muted">${p.songs.length}</span></button>`).join('');
+    const names = library.filter((p) => selected.has(p.id)).map((p) => p.name);
+    $('#libRandomHint').textContent = `random songs from ${names.length ? names.join(', ') : 'all playlists'}`;
+    $('#libAddAll').hidden = !selected.size;
+    renderLibSongs();
+  }
+  function renderLibSongs() {
+    const q = key($('#libSearch').value);
+    const have = inList();
+    const list = pool().filter((s) => !q || key(s).includes(q));
+    $('#libSongs').innerHTML = list.slice(0, 300).map((s) => {
+      const on = have.has(key(s));
+      return `<button data-song="${esc(s)}" class="${on ? 'on' : ''}" title="${on ? 'Remove from this game' : 'Add to this game'}">${on ? '✓' : '+'} ${fileFor(s) ? '♪ ' : ''}${esc(s)}</button>`;
+    }).join('') + (list.length > 300 ? `<span class="muted">…and ${list.length - 300} more. Search to narrow it down.</span>` : '') + (!list.length ? '<span class="muted">No songs match.</span>' : '');
+  }
+  window.renderLibSongs = renderLibSongs;
+  $('#libPacks').onclick = (e) => {
+    const b = e.target.closest('[data-pack]'); if (!b) return;
+    selected.has(b.dataset.pack) ? selected.delete(b.dataset.pack) : selected.add(b.dataset.pack);
+    renderLibrary();
+  };
+  $('#libSongs').onclick = (e) => {
+    const b = e.target.closest('[data-song]'); if (!b) return;
+    const s = b.dataset.song;
+    if (b.classList.contains('on')) { $('#songText').value = lines().filter((l) => key(l) !== key(s)).join('\n'); updateCounts(); }
+    else addLines([s]);
+    renderLibSongs();
+  };
+  $('#libSearch').oninput = renderLibSongs;
+  $('#libAddAll').onclick = () => { const n = addLines(pool()); flash(`Added ${n} songs.`); renderLibSongs(); };
+  $('#libRandom').onclick = () => {
+    const have = inList();
+    const left = pool().filter((s) => !have.has(key(s)));
+    for (let i = left.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [left[i], left[j]] = [left[j], left[i]]; }
+    const n = addLines(left.slice(0, +$('#libN').value));
+    flash(n ? `Added ${n} random songs.` : 'Every song from those playlists is already in the list.');
+    renderLibSongs();
+  };
+  $('#songText').addEventListener('input', () => renderLibSongs());
+  fetch('/api/music-library').then((r) => r.json()).then((d) => { library = Array.isArray(d) ? d : []; renderLibrary(); }).catch(() => { $('#library').hidden = true; });
 
   updateCounts();
 })();

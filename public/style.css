@@ -365,3 +365,17 @@ details summary { cursor: pointer; }
 /* Keep each game's Start button in view while the setup panel scrolls. */
 .controls .pane > button.primary[id^="start"]:last-child { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 18px 6px var(--panel); }
 #songText { max-height: 180px; }
+
+/* music bingo song library */
+.library { background: #ffffff06; border: 1px solid #ffffff12; border-radius: 12px; padding: 10px 12px; display: grid; gap: 10px; }
+.library[open] { padding-bottom: 12px; }
+.library summary { cursor: pointer; font-weight: 700; }
+.library summary .muted { font-weight: 400; margin-left: 6px; }
+.libpacks { display: flex; flex-wrap: wrap; gap: 6px; }
+.libpacks button { padding: 6px 12px; font-size: 14px; border-radius: 999px; }
+.libpacks button.on { background: var(--accent); color: #fff; }
+.libpacks button.on .muted { color: #ffffffcc; }
+.libsongs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; max-height: 220px; overflow: auto; }
+.libsongs button { text-align: left; font-weight: 500; padding: 7px 10px; font-size: 13px; }
+.libsongs button.on { background: var(--accent2); color: #001; }
+.songlist-head { font-weight: 600; margin-bottom: -4px; }
