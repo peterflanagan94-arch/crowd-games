@@ -9,7 +9,7 @@ const QRCode = require('qrcode');
 const { SAMPLE_QUIZ, SAMPLE_HL, WEDDING, CHALLENGES } = require('./quiz-sample');
 const { CATEGORIES, buildQuiz } = require('./quiz-packs');
 const { importPlaylist } = require('./playlist');
-const { PLAYLISTS } = require('./music-library');
+const { PLAYLISTS, YT } = require('./music-library');
 const { EMOJI_CATEGORIES, buildEmojiRound, emojiQuestions } = require('./emoji-packs');
 
 const PORT = process.env.PORT || 3000;
@@ -129,7 +129,7 @@ app.get('/api/emoji-pack', (req, res) => {
   res.json(buildEmojiRound(cats.length ? cats : EMOJI_CATEGORIES.map((c) => c.id), n, shuffle));
 });
 app.get('/api/challenges', (_req, res) => res.json(CHALLENGES));
-app.get('/api/music-library', (_req, res) => res.json(PLAYLISTS));
+app.get('/api/music-library', (_req, res) => res.json({ playlists: PLAYLISTS, yt: YT }));
 app.get('/api/playlist', async (req, res) => {
   try {
     const out = await importPlaylist(req.query.url);

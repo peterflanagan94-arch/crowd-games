@@ -142,4 +142,7 @@ const PLAYLISTS = [
   },
 ];
 
-module.exports = { PLAYLISTS: PLAYLISTS.map((p) => ({ ...p, songs: [...new Set(p.songs)] })) };
+// Official YouTube videos for the songs above (checked via YouTube oEmbed: embeddable, official channel).
+const YT = require('./music-youtube.json');
+
+module.exports = { PLAYLISTS: PLAYLISTS.map((p) => ({ ...p, songs: [...new Set(p.songs)] })), YT };

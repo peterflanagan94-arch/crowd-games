@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crowd QR Games · Music player</title>
+  <link rel="icon" href="/icon.svg" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { margin: 0; background: #000; height: 100vh; display: flex; flex-direction: column; }
+    .ytp-head { padding: 8px 12px; font-size: 13px; color: #aab; background: #0b0b14; display: flex; gap: 10px; align-items: center; }
+    .ytp-head b { color: #fff; }
+    #ytWrap { flex: 1; min-height: 200px; }
+  </style>
+</head>
+<body>
+  <div class="ytp-head"><b>Music player</b><span id="st">Keep this window open on your own screen. The crowd only sees the bingo screen.</span></div>
+  <div id="ytWrap"><div id="yt"></div></div>
+  <script src="/ytcore.js"></script>
+  <script>
+    const ch = new BroadcastChannel('cg-yt');
+    const core = new YTCore(document.getElementById('yt'), (e) => ch.postMessage(e));
+    ch.onmessage = ({ data: m }) => {
+      if (m.cmd === 'ping') ch.postMessage({ type: 'pong' });
+      if (m.cmd === 'play') { core.play(m); document.getElementById('st').textContent = 'Playing: ' + (m.label || ''); }
+      if (m.cmd === 'pause') core.pause();
+      if (m.cmd === 'resume') core.resume();
+      if (m.cmd === 'stop') { core.stop(); document.getElementById('st').textContent = 'Stopped.'; }
+      if (m.cmd === 'volume') core.volume(m.v);
+    };
+    ch.postMessage({ type: 'pong' });
+    core.ensure();
+    addEventListener('beforeunload', () => ch.postMessage({ type: 'closed' }));
+  </script>
+</body>
+</html>

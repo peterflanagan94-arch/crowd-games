@@ -16,6 +16,7 @@ Wedding packs:
 - **Couple higher or lower:** a template for numbers such as years together or guests at the wedding.
 - **My music:** hosts drag their songs or a folder in once. They're saved in that browser (IndexedDB) on that computer, never uploaded, and ready for every game: add single songs, all, or a random mix.
 - **Playlist ideas:** 12 themed title lists (floor-fillers, 80s to 2020s, pub singalongs, disco & Motown, dance, rock, Disney & musicals, Christmas), about 330 songs, marked ♪ where the host has the song in My music. Edit `music-library.js` to add lists.
+- **YouTube music videos:** playlist-ideas songs link to their official YouTube video, and any song can take your own link ("Artist - Title | https://youtu.be/…"). When a song is called the video plays as a clip or in full, either in a pop-out player window on the DJ's own screen (so the crowd never sees the title) or on the big screen. The YouTube player is never covered or hidden, as YouTube's rules require. Your own music files are used first when you have them.
 
 **Games**
 - **Quiz:** timed multiple choice. You get 500 points for a right answer plus up to 500 for speed, and a leaderboard shows after each question. There are 650 built-in questions, 50 in each of 13 categories: General Knowledge, Disney, Films, Music, Pop Culture, History, Geography, TV, Sport, Food & Drink, Animals, 80s & 90s Throwback and Christmas. Pick one or more, or choose **All categories** for a mixed round. Answer order is shuffled every time, and you can edit questions or write your own.

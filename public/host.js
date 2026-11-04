@@ -314,7 +314,7 @@ $('#startPoll').onclick = () => {
 
 $('#startBingo').onclick = () => send('host:startBingo', { mode: 'numbers', pattern: $('#bingoPattern').value });
 $('#startMusic').onclick = () => {
-  const songs = $('#songText').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  const songs = window.musicLabels ? window.musicLabels() : $('#songText').value.split('\n').map((s) => s.trim()).filter(Boolean);
   try { localStorage.setItem('cg-songs', $('#songText').value); } catch {}
   send('host:startBingo', { mode: 'music', songs, pattern: $('#musicPattern').value, hideTitles: $('#hideTitles').checked });
 };
@@ -435,7 +435,7 @@ function renderSongPick() {
   const called = new Set(g.called);
   $('#songPick').innerHTML = g.items
     .filter((i) => !f || i.label.toLowerCase().includes(f))
-    .map((i) => `<button data-id="${i.id}" class="${called.has(i.id) ? 'on' : ''}">${window.musicHasFile?.(i.label) ? '♪ ' : ''}${esc(i.label)}</button>`)
+    .map((i) => `<button data-id="${i.id}" class="${called.has(i.id) ? 'on' : ''}">${window.musicHasFile?.(i.label) ? '♪ ' : window.musicYtFor?.(i.label) ? '▶ ' : ''}${esc(i.label)}</button>`)
     .join('');
 }
 

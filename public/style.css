@@ -387,3 +387,10 @@ details summary { cursor: pointer; }
 label.inline { display: flex; gap: 6px; align-items: center; }
 label.inline input { width: auto; }
 .mine-body[hidden], .library [hidden] { display: none !important; }
+
+/* YouTube on the big screen: the player is never covered, the caption sits below it. */
+.ytscreen { position: fixed; z-index: 40; background: #000; display: flex; flex-direction: column; }
+.ytscreen[hidden] { display: none; }
+.ytscreen-player { flex: 1; min-height: 200px; }
+.ytscreen-player iframe, .ytscreen-player > div { width: 100%; height: 100%; display: block; }
+.ytscreen-cap { padding: 10px 16px; text-align: center; font-weight: 700; font-size: clamp(16px, 2.2vw, 30px); background: var(--panel); }

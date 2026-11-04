@@ -7,24 +7,29 @@
   const byTitle = new Map(); // title-only key -> File (null when two files share a title)
   // Loose key so "Don’t Stop Me Now" matches "Dont Stop Me Now" and "Beyoncé" matches "Beyonce".
   const key = (s) => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, 'and')
-    .replace(/\s(ft|feat|featuring)\.?\s[^-]*/g, ' ').replace(/[^a-z0-9]+/g, '');
+    .replace(/\s(ft|feat|featuring)\.?\s.*?(?=\s-\s|$)/g, ' ').replace(/[^a-z0-9]+/g, '');
   const titleKey = (s) => key(String(s).split(' - ').slice(1).join(' - ') || s);
   const norm = key;
   const fileFor = (label) => files.get(key(label)) || byTitle.get(titleKey(label)) || null;
-  const settings = () => ({ mode: $('#playMode').value, clip: +$('#clipLen').value, auto: $('#autoCall').checked });
+  const settings = () => ({ mode: $('#playMode').value, clip: +$('#clipLen').value, auto: $('#autoCall').checked, where: $('#ytWhere').value });
   const saveSettings = () => { try { localStorage.setItem('cg-music', JSON.stringify(settings())); } catch {} };
   try {
     const s = JSON.parse(localStorage.getItem('cg-music') || 'null');
-    if (s) { $('#playMode').value = s.mode; $('#clipLen').value = String(s.clip); $('#autoCall').checked = !!s.auto; }
+    if (s) { $('#playMode').value = s.mode; $('#clipLen').value = String(s.clip); $('#autoCall').checked = !!s.auto; if (s.where) $('#ytWhere').value = s.where; }
   } catch {}
-  ['#playMode', '#clipLen', '#autoCall'].forEach((id) => $(id).addEventListener('change', () => { saveSettings(); renderNow(); }));
+  ['#playMode', '#clipLen', '#autoCall', '#ytWhere'].forEach((id) => $(id).addEventListener('change', () => { saveSettings(); renderNow(); }));
 
   // ---------- song list helpers ----------
-  const lines = () => $('#songText').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  // A line is "Artist - Title", optionally followed by " | <YouTube link>".
+  const YT_ID = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{11})/;
+  const splitLine = (l) => { const m = l.match(/^(.*?)\s*\|\s*(\S+)\s*$/); const id = m && (m[2].match(YT_ID) || [])[1]; return id ? { label: m[1].trim(), yt: id } : { label: l.trim(), yt: null }; };
+  const rawLines = () => $('#songText').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  const lines = () => rawLines().map((l) => splitLine(l).label).filter(Boolean);
+  window.musicLabels = lines;
   function addLines(list) {
     const have = new Set(lines().map(norm));
-    const add = list.map((s) => s.trim()).filter((s) => s && !have.has(norm(s)) && have.add(norm(s)));
-    $('#songText').value = [...lines(), ...add].join('\n');
+    const add = list.map((s) => s.trim()).filter((s) => s && !have.has(norm(splitLine(s).label)) && have.add(norm(splitLine(s).label)));
+    $('#songText').value = [...rawLines(), ...add].join('\n');
     updateCounts();
     window.renderLibSongs?.();
     renderMine?.();
@@ -32,8 +37,8 @@
   }
   function updateCounts() {
     const n = lines().length;
-    const withFile = lines().filter((l) => !!fileFor(l)).length;
-    $('#songCount').textContent = n ? `${n} songs${n < 16 ? ` · need ${16 - n} more` : n < 24 ? ' · 4x4 cards' : ' · 5x5 cards'}${files.size ? ` · ${withFile} with music` : ''}` : '';
+    const withFile = lines().filter((l) => !!fileFor(l) || !!window.musicYtFor?.(l)).length;
+    $('#songCount').textContent = n ? `${n} songs${n < 16 ? ` · need ${16 - n} more` : n < 24 ? ' · 4x4 cards' : ' · 5x5 cards'} · ${withFile} can play` : '';
   }
   $('#songText').addEventListener('input', updateCounts);
   $('#clearSongs').onclick = () => { if (!lines().length || confirm('Clear the song list?')) { $('#songText').value = ''; updateCounts(); renderLibSongs(); renderMine(); } };
@@ -162,7 +167,7 @@
     }).join('') + (list.length > 400 ? `<span class="muted">…and ${list.length - 400} more. Search to narrow it down.</span>` : '') + (!list.length ? '<span class="muted">No songs match.</span>' : '');
   }
   function toggleSong(s, on) {
-    if (on) { $('#songText').value = lines().filter((l) => key(l) !== key(s)).join('\n'); updateCounts(); window.renderLibSongs?.(); renderMine(); }
+    if (on) { $('#songText').value = rawLines().filter((l) => key(splitLine(l).label) !== key(s)).join('\n'); updateCounts(); window.renderLibSongs?.(); renderMine(); }
     else addLines([s]);
   }
   async function forget(keys) {
@@ -279,14 +284,69 @@
 
   const game = () => (state?.game?.type === 'bingo' && state.game.mode === 'music' ? state.game : null);
   const itemFile = (it) => fileFor(it.label);
+  const ytMap = new Map(); // key -> YouTube id, from the playlist ideas
+  const badYt = new Set();
+  const ytFor = (label) => {
+    const k = key(label);
+    const own = rawLines().map(splitLine).find((x) => x.yt && key(x.label) === k)?.yt;
+    const id = own || ytMap.get(k) || null;
+    return id && !badYt.has(id) ? id : null;
+  };
+  window.musicYtFor = ytFor;
+  const canPlay = (it) => !!(itemFile(it) || ytFor(it.label));
+
+  // YouTube player: in a pop-out window on the DJ's screen (crowd never sees titles) or on the big screen.
+  const ytWhere = () => $('#ytWhere').value;
+  const ch = 'BroadcastChannel' in window ? new BroadcastChannel('cg-yt') : null;
+  let popupAlive = false, popupWin = null, ytPlaying = false, ytTime = { cur: 0, dur: 0 }, screenCore = null;
+  ch?.addEventListener('message', ({ data: e }) => { if (e.type === 'pong') { popupAlive = true; renderNow(); } else if (e.type === 'closed') { popupAlive = false; renderNow(); } else onYt(e); });
+  ch?.postMessage({ cmd: 'ping' });
+  function openPlayer() {
+    popupWin = window.open('/yt-player', 'cg-yt-player', 'width=560,height=380');
+    if (!popupWin) $('#err').textContent = 'Your browser blocked the player window. Allow pop-ups for this site and try again.';
+  }
+  function yt(cmd, extra = {}) {
+    if (ytWhere() === 'screen') {
+      if (!screenCore) screenCore = new YTCore($('#ytScreenPlayer'), onYt);
+      if (cmd === 'play') { showScreen(true); screenCore.play(extra); }
+      if (cmd === 'pause') screenCore.pause();
+      if (cmd === 'resume') screenCore.resume();
+      if (cmd === 'stop') { screenCore.stop(); showScreen(false); }
+      if (cmd === 'volume') screenCore.volume(extra.v);
+    } else {
+      ch?.postMessage({ cmd, ...extra });
+      if (cmd === 'stop' && screenCore) { screenCore.stop(); showScreen(false); }
+    }
+  }
+  function showScreen(on) {
+    const box = $('#ytScreen'); if (!box) return;
+    if (on) {
+      const r = $('#stage').getBoundingClientRect();
+      Object.assign(box.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    }
+    box.hidden = !on;
+  }
+  function onYt(e) {
+    if (!playing || playing.kind !== 'yt' || (e.id && e.id !== playing.yt)) return;
+    if (e.type === 'start') { playing.start = e.start; playing.end = e.end; playing.finding = false; renderNow(); }
+    if (e.type === 'time') { ytTime = e; renderProgress(); }
+    if (e.type === 'state') { ytPlaying = e.playing; renderNow(); }
+    if (e.type === 'ended') { ytPlaying = false; if (ytWhere() === 'screen') showScreen(false); songEnded(); }
+    if (e.type === 'error') {
+      badYt.add(playing.yt); ytPlaying = false; showScreen(false);
+      $('#err').textContent = `YouTube won't play "${playing.label}" here. Skipping it.`;
+      playing = null; renderNow();
+      if (settings().auto) autoTimer = setTimeout(() => window.musicNext(), 1500);
+    }
+  }
   window.musicAudio = audio; // handy for debugging
   window.musicHasFile = (label) => !!fileFor(label);
-  window.musicCanPlay = () => !!game() && settings().mode !== 'none' && game().items.some(itemFile);
+  window.musicCanPlay = () => !!game() && settings().mode !== 'none' && game().items.some(canPlay);
   window.musicNext = () => {
     const g = game(); if (!g) return;
     const called = new Set(g.called);
     // Prefer songs we can actually play.
-    const pool = g.items.filter((i) => !called.has(i.id) && (settings().mode === 'none' || itemFile(i)));
+    const pool = g.items.filter((i) => !called.has(i.id) && (settings().mode === 'none' || canPlay(i)));
     const any = pool.length ? pool : g.items.filter((i) => !called.has(i.id));
     if (!any.length) return stopAuto('Every song has been called.');
     send('host:call', { id: any[Math.floor(Math.random() * any.length)].id });
@@ -321,7 +381,18 @@
     const f = itemFile(it);
     const { mode, clip } = settings();
     clearTimeout(autoTimer); clearInterval(fadeTimer);
-    if (!f || mode === 'none') { audio.pause(); playing = null; renderNow(); return; }
+    const ytId = !f && ytFor(it.label);
+    if ((!f && !ytId) || mode === 'none') { audio.pause(); if (playing?.kind === 'yt') yt('stop'); playing = null; renderNow(); return; }
+    if (ytId) {
+      audio.pause();
+      if (ytWhere() === 'popout' && !popupAlive) { $('#err').textContent = 'Open the player window first (the button in the DJ controls), then press Next song.'; playing = null; renderNow(); return; }
+      playing = { id: it.id, label: it.label, start: 0, end: null, finding: mode === 'clip', kind: 'yt', yt: ytId };
+      ytTime = { cur: 0, dur: 0 };
+      yt('play', { id: ytId, mode, clip, label: it.label });
+      renderNow();
+      return;
+    }
+    if (playing?.kind === 'yt') yt('stop');
     if (url) URL.revokeObjectURL(url);
     url = URL.createObjectURL(f);
     audio.src = url; audio.volume = vol;
@@ -370,7 +441,7 @@
   socket.on('state', () => {
     const g = game();
     if (!g) {
-      if (playing) { fadeOut(); playing = null; }
+      if (playing) { if (playing.kind === 'yt') yt('stop'); else fadeOut(); playing = null; }
       lastCalled = null; seen = false; winnersSeen = 0; clearTimeout(autoTimer);
       return;
     }
@@ -383,7 +454,7 @@
     if (last !== lastCalled) {
       lastCalled = last;
       const it = g.items.find((i) => i.id === last);
-      if (it) play(it); else { audio.pause(); playing = null; }
+      if (it) play(it); else { audio.pause(); if (playing?.kind === 'yt') yt('stop'); playing = null; }
     }
     renderNow();
   });
@@ -392,9 +463,10 @@
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   function renderProgress() {
     const el = $('#npBar'); if (!el || !playing) return;
-    const a = playing.end ? playing.start : 0, b = playing.end || audio.duration || 1;
-    el.style.width = `${Math.min(100, Math.max(0, ((audio.currentTime - a) / (b - a)) * 100))}%`;
-    const t = $('#npTime'); if (t) t.textContent = playing.end ? `${fmt(Math.max(0, playing.end - audio.currentTime))} left` : `${fmt(audio.currentTime)} / ${fmt(audio.duration || 0)}`;
+    const cur = playing.kind === 'yt' ? ytTime.cur : audio.currentTime, dur = playing.kind === 'yt' ? ytTime.dur : audio.duration;
+    const a = playing.end ? playing.start : 0, b = playing.end || dur || 1;
+    el.style.width = `${Math.min(100, Math.max(0, ((cur - a) / (b - a)) * 100))}%`;
+    const t = $('#npTime'); if (t) t.textContent = playing.end ? `${fmt(Math.max(0, playing.end - cur))} left` : `${fmt(cur)} / ${fmt(dur || 0)}`;
   }
   function renderNow() {
     const el = $('#nowPlaying');
@@ -406,20 +478,22 @@
       el.innerHTML = `<div class="np-main"><button class="primary" data-np="remoteNext">⏭ Next song</button><span class="muted">Plays on the big screen if its music file is loaded there.</span></div>`;
       return;
     }
-    const playable = g.items.filter(itemFile).length;
+    const playable = g.items.filter(canPlay).length;
+    const needsPopup = ytWhere() === 'popout' && !popupAlive && g.items.some((i) => !itemFile(i) && ytFor(i.label));
     el.hidden = false;
     if (!playable) {
-      el.innerHTML = `<span class="muted">No music files loaded on this screen${files.size ? ' match these songs' : ''}. Tap songs below as you play them from your decks, or</span>
+      el.innerHTML = `<span class="muted">No music for these songs on this screen. Tap songs below as you play them from your decks, or</span>
         <button data-np="add">🎧 Add music files</button>`;
     } else {
       const s = settings();
-      const paused = audio.paused;
+      const paused = playing?.kind === 'yt' ? !ytPlaying : audio.paused;
       el.innerHTML = `
         <div class="np-main">
+          ${needsPopup ? '<button class="secondary" data-np="popup">🪟 Open the player window</button>' : ''}
           <button class="primary" data-np="next">⏭ Next song <span class="muted">(space)</span></button>
           ${playing ? `<button data-np="toggle">${paused ? '▶ Play' : '⏸ Pause'}</button>` : ''}
           <div class="np-info">
-            <div class="np-title">${playing ? (playing.finding ? 'Finding the chorus… ' : '♪ ') + esc(playing.label) : `<span class="muted">${playable} of ${g.items.length} songs have music files. Press Next song to start.</span>`}</div>
+            <div class="np-title">${playing ? (playing.finding ? (playing.kind === 'yt' ? 'Loading… ' : 'Finding the chorus… ') : playing.kind === 'yt' ? '▶ ' : '♪ ') + esc(playing.label) : `<span class="muted">${playable} of ${g.items.length} songs can play (♪ your files, ▶ YouTube). ${needsPopup ? 'Open the player window, then press Next song.' : 'Press Next song to start.'}</span>`}</div>
             ${playing ? `<div class="np-prog"><i id="npBar"></i></div>` : ''}
           </div>
           ${playing ? '<span class="muted" id="npTime"></span>' : ''}
@@ -439,17 +513,22 @@
     if (a === 'add') $('#fileIn').click();
     if (a === 'next') window.musicNext();
     if (a === 'remoteNext') send('host:call');
-    if (a === 'toggle') { clearTimeout(autoTimer); audio.paused ? audio.play() : audio.pause(); }
+    if (a === 'popup') openPlayer();
+    if (a === 'toggle') {
+      clearTimeout(autoTimer);
+      if (playing?.kind === 'yt') yt(ytPlaying ? 'pause' : 'resume');
+      else audio.paused ? audio.play() : audio.pause();
+    }
   });
   $('#nowPlaying').addEventListener('change', (e) => {
     const a = e.target.dataset.np;
-    if (a === 'mode') { $('#playMode').value = e.target.value; if (e.target.value === 'none') { audio.pause(); clearTimeout(autoTimer); } }
+    if (a === 'mode') { $('#playMode').value = e.target.value; if (e.target.value === 'none') { audio.pause(); if (playing?.kind === 'yt') yt('pause'); clearTimeout(autoTimer); } }
     if (a === 'clip') $('#clipLen').value = e.target.value;
     if (a === 'auto') { $('#autoCall').checked = e.target.checked; if (e.target.checked && (!playing || audio.paused)) window.musicNext(); }
     saveSettings(); renderNow();
   });
   $('#nowPlaying').addEventListener('input', (e) => {
-    if (e.target.dataset.np === 'vol') { vol = +e.target.value; audio.volume = vol; }
+    if (e.target.dataset.np === 'vol') { vol = +e.target.value; audio.volume = vol; yt('volume', { v: vol }); }
   });
 
   // ---------- shared song library ----------
@@ -459,7 +538,7 @@
     const packs = selected.size ? library.filter((p) => selected.has(p.id)) : library;
     const seen = new Set();
     const owned = $('#libOwned').checked;
-    return packs.flatMap((p) => p.songs).filter((s) => !seen.has(key(s)) && seen.add(key(s)) && (!owned || fileFor(s)));
+    return packs.flatMap((p) => p.songs).filter((s) => !seen.has(key(s)) && seen.add(key(s)) && (!owned || fileFor(s) || ytFor(s)));
   };
   function renderLibrary() {
     $('#libPacks').innerHTML = library.map((p) => `<button data-pack="${p.id}" class="${selected.has(p.id) ? 'on' : ''}">${p.emoji} ${esc(p.name)} <span class="muted">${p.songs.length}</span></button>`).join('');
@@ -474,7 +553,7 @@
     const list = pool().filter((s) => !q || key(s).includes(q));
     $('#libSongs').innerHTML = list.slice(0, 300).map((s) => {
       const on = have.has(key(s));
-      return `<button data-song="${esc(s)}" class="${on ? 'on' : ''}" title="${on ? 'Remove from this game' : 'Add to this game'}">${on ? '✓' : '+'} ${fileFor(s) ? '♪ ' : ''}${esc(s)}</button>`;
+      return `<button data-song="${esc(s)}" class="${on ? 'on' : ''}" title="${on ? 'Remove from this game' : 'Add to this game'}">${on ? '✓' : '+'} ${fileFor(s) ? '♪ ' : ytFor(s) ? '▶ ' : ''}${esc(s)}</button>`;
     }).join('') + (list.length > 300 ? `<span class="muted">…and ${list.length - 300} more. Search to narrow it down.</span>` : '') + (!list.length ? '<span class="muted">No songs match.</span>' : '');
   }
   window.renderLibSongs = renderLibSongs;
@@ -499,7 +578,11 @@
     renderLibSongs();
   };
   $('#songText').addEventListener('input', () => { renderLibSongs(); renderMine(); });
-  fetch('/api/music-library').then((r) => r.json()).then((d) => { library = Array.isArray(d) ? d : []; renderLibrary(); }).catch(() => { $('#library').hidden = true; });
+  fetch('/api/music-library').then((r) => r.json()).then((d) => {
+    library = Array.isArray(d) ? d : d.playlists || [];
+    for (const [label, id] of Object.entries(d.yt || {})) ytMap.set(key(label), id);
+    renderLibrary(); updateCounts(); window.renderSongPick?.();
+  }).catch(() => { $('#library').hidden = true; });
 
   updateCounts();
 })();
