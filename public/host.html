@@ -157,16 +157,15 @@
         <label>Clip length
           <select id="clipLen"><option value="20">20 seconds</option><option value="30" selected>30 seconds</option><option value="45">45 seconds</option><option value="60">60 seconds</option></select>
         </label>
-        <label>YouTube videos play
-          <select id="ytWhere"><option value="popout">in a pop-out window on my screen (the crowd won't see titles)</option><option value="screen">on the big screen (the video may show the title)</option></select>
-        </label>
         <label><input type="checkbox" id="autoCall" /> Auto-call: when a song ends, call and play the next one (stops when someone gets bingo)</label>
       </div>
       <div class="row2">
         <label>Winning pattern
           <select id="musicPattern"><option value="line">One line</option><option value="two">Two lines</option><option value="full">Full house</option></select>
         </label>
-        <label><input type="checkbox" id="hideTitles" checked /> Hide song titles on the big screen (the crowd has to recognise them by ear)</label>
+        <label>The audience sees
+          <select id="audience"><option value="hidden">Nothing: they guess by ear</option><option value="titles">Song titles (song board)</option><option value="video">The music video only</option><option value="both">The music video + song titles</option></select>
+        </label>
       </div>
       <button class="primary" id="startMusic">Start music bingo</button>
     </div>
@@ -249,7 +248,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/host.js"></script>
-  <div class="ytscreen" id="ytScreen" hidden><div class="ytscreen-player"><div id="ytScreenPlayer"></div></div><div class="ytscreen-cap">♪ Listen carefully… find it on your card!</div></div>
+  <div class="ytscreen" id="ytScreen" hidden><div class="ytscreen-player"><div id="ytScreenPlayer"></div></div><div class="ytscreen-cap" id="ytScreenCap">♪ Listen carefully… find it on your card!</div></div>
   <script src="/ytcore.js"></script>
   <script src="/music.js"></script>
 </body>

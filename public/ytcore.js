@@ -31,10 +31,10 @@
       });
       return this.player;
     }
-    async play({ id, mode, clip }) {
+    async play({ id, mode, clip, at, end }) {
       const p = await this.ensure();
       clearInterval(this.fading); this.fading = null;
-      this.want = { id, mode, clip, start: 0, end: null, placed: false };
+      this.want = { id, mode, clip, start: 0, end: null, placed: false, at, endAt: end };
       p.setVolume(this.vol);
       p.loadVideoById({ videoId: id });
       clearInterval(this.timer);
@@ -45,7 +45,10 @@
       if (s === YT.PlayerState.PLAYING && !w.placed) {
         w.placed = true;
         const dur = this.player.getDuration() || 0;
-        if (w.mode === 'clip' && dur > w.clip + 20) {
+        if (w.mode === 'resume') {
+          w.start = w.at || 0; w.end = w.endAt || null;
+          if (w.at) this.player.seekTo(w.at, true);
+        } else if (w.mode === 'clip' && dur > w.clip + 20) {
           w.start = Math.round(Math.min(dur - w.clip - 5, Math.max(25, dur * 0.35)));
           w.end = w.start + w.clip;
           this.player.seekTo(w.start, true);

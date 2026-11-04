@@ -316,7 +316,7 @@ $('#startBingo').onclick = () => send('host:startBingo', { mode: 'numbers', patt
 $('#startMusic').onclick = () => {
   const songs = window.musicLabels ? window.musicLabels() : $('#songText').value.split('\n').map((s) => s.trim()).filter(Boolean);
   try { localStorage.setItem('cg-songs', $('#songText').value); } catch {}
-  send('host:startBingo', { mode: 'music', songs, pattern: $('#musicPattern').value, hideTitles: $('#hideTitles').checked });
+  send('host:startBingo', { mode: 'music', songs, pattern: $('#musicPattern').value, audience: $('#audience').value });
 };
 try {
   $('#songText').value = localStorage.getItem('cg-songs') || '';
@@ -347,6 +347,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'f') document.documentElement.requestFullscreen?.();
   if (e.key === 'c') $('#toggle').click();
 });
+
+const AUDIENCE_OPTS = [['hidden', 'Nothing: guess by ear'], ['titles', 'Song titles'], ['video', 'Video only'], ['both', 'Video + song titles']];
 
 function primaryAction() {
   const g = state?.game;
@@ -396,7 +398,7 @@ function renderControls() {
   } else {
     if (g.mode === 'numbers') html += `<button class="primary" data-act="call">Call next number <span class="muted">(space)</span></button>`;
     html += `<select data-act="pattern">${['line', 'two', 'full'].map((p) => `<option value="${p}" ${p === g.pattern ? 'selected' : ''}>${{ line: 'One line', two: 'Two lines', full: 'Full house' }[p]}</option>`).join('')}</select>`;
-    if (g.mode === 'music') html += `<label><input type="checkbox" data-act="hide" style="width:auto" ${g.hideTitles ? 'checked' : ''}/> Hide titles</label>`;
+    if (g.mode === 'music') html += `<label class="inline">Audience sees <select data-act="audience">${AUDIENCE_OPTS.map(([v, t]) => `<option value="${v}" ${v === g.audience ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
     html += `<span class="muted">${g.called.length} called</span>`;
   }
   html += `<button data-act="end">End game</button>`;
@@ -411,7 +413,7 @@ function renderControls() {
   live.querySelector('[data-act=poll]')?.addEventListener('click', () => send('host:pollOpen', { open: !g.open }));
   live.querySelector('[data-act=call]')?.addEventListener('click', () => send('host:call'));
   live.querySelector('[data-act=pattern]')?.addEventListener('change', (e) => send('host:pattern', { pattern: e.target.value }));
-  live.querySelector('[data-act=hide]')?.addEventListener('change', (e) => send('host:hideTitles', { on: e.target.checked }));
+  live.querySelector('[data-act=audience]')?.addEventListener('change', (e) => { send('host:audience', { view: e.target.value }); window.musicAudienceChanged?.(e.target.value); });
   live.querySelector('[data-act=end]').addEventListener('click', () => confirm('End this game and go back to the lobby?') && send('host:end'));
   if (g.type === 'bingo' && g.mode === 'music') renderSongPick();
   if (g.type === 'couple') renderCoupleEntry(g);
@@ -641,6 +643,18 @@ function renderPoll(st, g) {
   </div>`;
 }
 
+// Every song played so far, newest first, as tiles: title big, artist small.
+function songBoard(g, max = 40) {
+  const byId = Object.fromEntries(g.items.map((i) => [i.id, i.label]));
+  const tiles = g.called.slice().reverse().slice(0, max).map((id, n) => {
+    const [artist, ...t] = String(byId[id] || '').split(' - ');
+    const title = t.length ? t.join(' - ') : artist;
+    return `<div class="sb-tile ${n === 0 ? 'now' : ''}"><b>${esc(title)}</b>${t.length ? `<small>${esc(artist)}</small>` : ''}</div>`;
+  }).join('');
+  return `<div class="songboard"><div class="sb-head">Song board · ${g.called.length} of ${g.items.length} played</div><div class="sb-grid">${tiles}</div></div>`;
+}
+window.songBoard = songBoard;
+
 function renderBingo(st, g) {
   const called = new Set(g.called);
   const byId = Object.fromEntries(g.items.map((i) => [i.id, i.label]));
@@ -658,7 +672,7 @@ function renderBingo(st, g) {
   if (g.mode === 'numbers') {
     history = `<div class="called-grid">${Array.from({ length: 75 }, (_, i) => `<div class="${called.has(String(i + 1)) ? 'on' : ''}">${i + 1}</div>`).join('')}</div>`;
   } else if (!g.hideTitles) {
-    history = `<div class="called-list">${g.called.slice(0, -1).reverse().slice(0, 30).map((id) => `<span>${esc(byId[id])}</span>`).join('')}</div>`;
+    history = songBoard(g);
   }
   const winners = g.winners.length ? `<div class="winners">🏆 ${g.winners.map((w) => esc(w.name)).join(', ')}</div>` : '';
   let flash = '';

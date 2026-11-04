@@ -394,3 +394,16 @@ label.inline input { width: auto; }
 .ytscreen-player { flex: 1; min-height: 200px; }
 .ytscreen-player iframe, .ytscreen-player > div { width: 100%; height: 100%; display: block; }
 .ytscreen-cap { padding: 10px 16px; text-align: center; font-weight: 700; font-size: clamp(16px, 2.2vw, 30px); background: var(--panel); }
+
+/* music bingo song board (titles view) */
+.songboard { width: min(100%, 1400px); margin-top: 2.5cqh; }
+.sb-head { text-align: center; color: var(--muted, #aab); font-size: clamp(12px, 1.8cqh, 22px); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1.2cqh; }
+.sb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 22%), 1fr)); gap: 1cqh; }
+.sb-tile { background: #1d3b2a; border: 1px solid #3fa66a66; border-radius: 10px; padding: 1cqh .8cqw; text-align: center; display: flex; flex-direction: column; gap: .3cqh; min-width: 0; }
+.sb-tile b { font-size: clamp(12px, 2cqh, 26px); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sb-tile small { font-size: clamp(10px, 1.4cqh, 18px); opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-tile.now { background: var(--accent, #ff3d9a); border-color: #fff; }
+.ytscreen-cap.board { max-height: 42%; overflow: hidden; padding: 8px 12px 12px; font-weight: 400; container-type: size; height: 40%; }
+.ytscreen-cap.board .songboard { margin: 0 auto; }
+.ytscreen-cap.board .sb-head { font-size: 14px; margin-bottom: 6px; }
+.ytscreen-cap.board .sb-tile b { font-size: 16px; } .ytscreen-cap.board .sb-tile small { font-size: 12px; }

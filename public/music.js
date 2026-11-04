@@ -11,13 +11,13 @@
   const titleKey = (s) => key(String(s).split(' - ').slice(1).join(' - ') || s);
   const norm = key;
   const fileFor = (label) => files.get(key(label)) || byTitle.get(titleKey(label)) || null;
-  const settings = () => ({ mode: $('#playMode').value, clip: +$('#clipLen').value, auto: $('#autoCall').checked, where: $('#ytWhere').value });
+  const settings = () => ({ mode: $('#playMode').value, clip: +$('#clipLen').value, auto: $('#autoCall').checked, audience: $('#audience').value });
   const saveSettings = () => { try { localStorage.setItem('cg-music', JSON.stringify(settings())); } catch {} };
   try {
     const s = JSON.parse(localStorage.getItem('cg-music') || 'null');
-    if (s) { $('#playMode').value = s.mode; $('#clipLen').value = String(s.clip); $('#autoCall').checked = !!s.auto; if (s.where) $('#ytWhere').value = s.where; }
+    if (s) { $('#playMode').value = s.mode; $('#clipLen').value = String(s.clip); $('#autoCall').checked = !!s.auto; if (s.audience) $('#audience').value = s.audience; }
   } catch {}
-  ['#playMode', '#clipLen', '#autoCall', '#ytWhere'].forEach((id) => $(id).addEventListener('change', () => { saveSettings(); renderNow(); }));
+  ['#playMode', '#clipLen', '#autoCall', '#audience'].forEach((id) => $(id).addEventListener('change', () => { saveSettings(); renderNow(); }));
 
   // ---------- song list helpers ----------
   // A line is "Artist - Title", optionally followed by " | <YouTube link>".
@@ -296,7 +296,29 @@
   const canPlay = (it) => !!(itemFile(it) || ytFor(it.label));
 
   // YouTube player: in a pop-out window on the DJ's screen (crowd never sees titles) or on the big screen.
-  const ytWhere = () => $('#ytWhere').value;
+  const audience = () => (state?.game?.type === 'bingo' && state.game.audience) || $('#audience').value;
+  // Video views put the player on the big screen; otherwise it plays in the pop-out window on the DJ's screen.
+  const ytWhere = () => (['video', 'both'].includes(audience()) ? 'screen' : 'popout');
+  let lastWhere = null;
+  window.musicAudienceChanged = (view) => {
+    $('#audience').value = view; saveSettings();
+    // Move a playing video to its new place, carrying on from the same point.
+    setTimeout(() => {
+      const where = ytWhere();
+      if (playing?.kind === 'yt' && lastWhere && where !== lastWhere) {
+        if (lastWhere === 'screen') { screenCore?.stop(); showScreen(false); } else ch?.postMessage({ cmd: 'stop' });
+        if (where === 'popout' && !popupAlive) { $('#err').textContent = 'Open the player window to keep the music going.'; playing = null; renderNow(); return; }
+        yt('play', { id: playing.yt, mode: 'resume', at: ytTime.cur || 0, end: playing.end, label: playing.label });
+      }
+      lastWhere = where; renderCap(); renderNow();
+    }, 150);
+  };
+  function renderCap() {
+    const cap = $('#ytScreenCap'); const g = state?.game; if (!cap || !g || g.type !== 'bingo') return;
+    const both = g.audience === 'both';
+    cap.classList.toggle('board', both);
+    cap.innerHTML = both ? window.songBoard(g, 16) : `♪ Song ${g.called.length}: listen carefully… find it on your card!`;
+  }
   const ch = 'BroadcastChannel' in window ? new BroadcastChannel('cg-yt') : null;
   let popupAlive = false, popupWin = null, ytPlaying = false, ytTime = { cur: 0, dur: 0 }, screenCore = null;
   ch?.addEventListener('message', ({ data: e }) => { if (e.type === 'pong') { popupAlive = true; renderNow(); } else if (e.type === 'closed') { popupAlive = false; renderNow(); } else onYt(e); });
@@ -306,9 +328,10 @@
     if (!popupWin) $('#err').textContent = 'Your browser blocked the player window. Allow pop-ups for this site and try again.';
   }
   function yt(cmd, extra = {}) {
+    if (cmd === 'play') lastWhere = ytWhere();
     if (ytWhere() === 'screen') {
       if (!screenCore) screenCore = new YTCore($('#ytScreenPlayer'), onYt);
-      if (cmd === 'play') { showScreen(true); screenCore.play(extra); }
+      if (cmd === 'play') { showScreen(true); renderCap(); screenCore.play(extra); }
       if (cmd === 'pause') screenCore.pause();
       if (cmd === 'resume') screenCore.resume();
       if (cmd === 'stop') { screenCore.stop(); showScreen(false); }
@@ -449,6 +472,7 @@
       winnersSeen = g.winners.length;
       if (settings().auto) stopAuto(`Bingo from ${g.winners.at(-1).name}! Auto-call paused: check their card, then press Next song.`);
     }
+    if (!$('#ytScreen').hidden) renderCap();
     const last = g.called.at(-1) ?? null;
     if (!seen) { seen = true; lastCalled = last; renderNow(); return; } // first look at this game (or a reload mid-game): don't replay
     if (last !== lastCalled) {

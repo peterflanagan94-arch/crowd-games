@@ -480,7 +480,8 @@ function coupleView(room, who) {
 // ---------- bingo (numbers + music) ----------
 const BINGO_COLS = ['B', 'I', 'N', 'G', 'O'];
 
-function startBingo(room, { mode, songs, pattern, hideTitles }) {
+const AUDIENCE = ['hidden', 'titles', 'video', 'both']; // what the crowd's screen shows in music bingo
+function startBingo(room, { mode, songs, pattern, hideTitles, audience }) {
   let items;
   let size;
   if (mode === 'music') {
@@ -498,11 +499,13 @@ function startBingo(room, { mode, songs, pattern, hideTitles }) {
     pattern: ['line', 'two', 'full'].includes(pattern) ? pattern : 'line',
     items,
     size,
-    hideTitles: mode === 'music' && !!hideTitles, // crowd must recognise songs by ear
+    audience: AUDIENCE.includes(audience) ? audience : hideTitles ? 'hidden' : 'titles',
+    hideTitles: false, // set below from audience: crowd must recognise songs by ear
     called: [], // item ids, in order
     winners: [], // { id, name, at }
     claimFlash: null,
   };
+  room.game.hideTitles = room.game.mode === 'music' && ['hidden', 'video'].includes(room.game.audience);
   for (const p of room.players.values()) dealCard(room, p);
   return null;
 }
@@ -596,7 +599,7 @@ function hostView(room) {
   return {
     ...base,
     game: {
-      type: 'bingo', mode: g.mode, pattern: g.pattern, size: g.size, hideTitles: g.hideTitles,
+      type: 'bingo', mode: g.mode, pattern: g.pattern, size: g.size, hideTitles: g.hideTitles, audience: g.audience,
       items: g.items, called: g.called, lastCalled: g.called.length ? byId[g.called.at(-1)] : null,
       winners: g.winners, claimFlash: g.claimFlash,
     },
@@ -772,6 +775,14 @@ io.on('connection', (socket) => {
   socket.on('host:hideTitles', host(({ on }) => {
     if (room.game?.type !== 'bingo') return 'No bingo running';
     room.game.hideTitles = room.game.mode === 'music' && !!on;
+    room.game.audience = on ? (room.game.audience === 'both' ? 'video' : 'hidden') : (room.game.audience === 'video' ? 'both' : 'titles');
+  }));
+  socket.on('host:audience', host(({ view }) => {
+    const g = room.game;
+    if (g?.type !== 'bingo' || g.mode !== 'music') return 'No music bingo running';
+    if (!AUDIENCE.includes(view)) return 'Bad view';
+    g.audience = view;
+    g.hideTitles = ['hidden', 'video'].includes(view);
   }));
   socket.on('host:end', host(() => {
     if (room.game?.timer) clearTimeout(room.game.timer);
