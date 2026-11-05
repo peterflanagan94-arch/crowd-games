@@ -52,8 +52,11 @@ function pgStore(url) {
   return {
     kind: 'postgres',
     async init() {
+      // Postgres checks the right to create schemas even with IF NOT EXISTS, and a login that
+      // only owns its own schema (as on a shared Supabase project) doesn't have it.
+      const has = await pool.query('SELECT 1 FROM pg_namespace WHERE nspname = $1', [S]);
+      if (!has.rowCount) await pool.query(`CREATE SCHEMA ${S}`);
       await pool.query(`
-        CREATE SCHEMA IF NOT EXISTS ${S};
         CREATE TABLE IF NOT EXISTS ${S}.users (
           id SERIAL PRIMARY KEY,
           email TEXT NOT NULL,
