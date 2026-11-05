@@ -299,6 +299,8 @@ function cardHtml(c, size = '') {
 }
 const ACE_NOTE = { both: 'Aces count high or low, whichever helps you', high: 'Aces are high', low: 'Aces are low' };
 
+// An answer can be a logo picture: the option is then the file's path under /img/logos/.
+const optHtml = (o) => (/^\/img\/logos\/[\w.-]+\.(png|svg|jpe?g|webp)$/i.test(o || '') ? `<img class="optimg" src="${esc(o)}" alt="">` : esc(o));
 const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
 
 function renderQuiz(g, me) {
@@ -325,7 +327,7 @@ function renderQuiz(g, me) {
       const note = { any: 'An Ace! Every guess scores.', none: 'A pair! Nobody scores this round.' }[g.hl.outcome] || `It was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>`;
       detail = `<div class="pcards">${cardHtml(g.hl.a.card, 'sm')}${cardHtml(g.hl.b.card, 'sm')}</div><p>${note}</p>`;
     } else {
-      detail = `${isEmoji ? `<div class="pemoji">${esc(g.question)}</div>` : ''}<p>The answer was <b>${shapes[g.answer]} ${esc(g.options[g.answer])}</b>${g.note ? `<br><span class="muted">${esc(g.note)}</span>` : ''}${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p>`;
+      detail = `${isEmoji ? `<div class="pemoji">${esc(g.question)}</div>` : ''}${g.img ? `<img class="revealimg" src="${esc(g.img)}" alt="">` : ''}<p>The answer was <b>${shapes[g.answer]} ${optHtml(g.options[g.answer])}</b>${g.note ? `<br><span class="muted">${esc(g.note)}</span>` : ''}${isHl ? `<br>${esc(g.hl.b.label)}: <b>${fmtNum(g.hl.b.value)}</b>${unit}` : ''}</p>`;
     }
     m.innerHTML = `<div class="result ${cls}"><div class="big">${msg}</div>${detail}</div>
       <div class="center muted">You're #${me.rank} with ${me.score} points</div>`;
@@ -345,7 +347,7 @@ function renderQuiz(g, me) {
     ${qHtml}
     <div class="ptimer"><div id="bar"></div></div>
     <div class="pans ${/Mandela/i.test(g.cat || '') ? 'logo' : ''}" style="${isHl ? 'grid-template-columns:1fr' : ''}">${g.options.map((o, i) => `<button class="c${isHl ? 3 - i * 3 : i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>
-      <span class="shape">${shapes[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
+      <span class="shape">${shapes[i]}</span><span>${optHtml(o)}</span></button>`).join('')}</div>
     ${answered ? '<div class="center muted">Answer locked in! Waiting for everyone…</div>' : ''}`;
   m.querySelectorAll('.pans button').forEach((b) => (b.onclick = () => {
     navigator.vibrate?.(30);

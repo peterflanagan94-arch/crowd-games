@@ -1,5 +1,7 @@
 // End-to-end smoke test over real sockets: quiz + number bingo + music bingo.
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const { io } = require('socket.io-client');
 process.env.CG_SPIN_MS = '150';
 const { server, rooms } = require('../server');
@@ -240,6 +242,10 @@ server.listen(0, async () => {
   assert.equal(logos.length, 50);
   assert.ok(logos.every((q) => /Mandela/.test(q.cat) && q.options[q.answer] && q.options.length >= 2), 'valid logo questions');
   assert.ok(logos.filter((q) => q.note).length >= 30, 'most logo questions explain themselves');
+  const withImg = logos.filter((q) => q.img);
+  assert.ok(withImg.length >= 6 && withImg.every((q) => fs.existsSync(path.join(__dirname, '../public', q.img))), 'logo pictures exist');
+  const imgOpts = logos.flatMap((q) => q.options).filter((o) => o.startsWith('/img/'));
+  assert.ok(imgOpts.length >= 2 && imgOpts.every((o) => fs.existsSync(path.join(__dirname, '../public', o))), 'logo answer pictures exist');
 
   // Raffle: tickets, prizes in order, no repeat winners, redraw, opt-in
   assert.match(latest.get('Ana').me.ticket, /^#\d{3}$/);

@@ -1,5 +1,5 @@
 // Quiz question packs by category. Each question: [question, correct answer, wrong, wrong, wrong],
-// optionally ending with { note } to show after the reveal.
+// optionally ending with { note, img } to show after the reveal (img = a file in public/img/logos).
 // The correct answer is listed first here; answer order is shuffled when a quiz is built.
 const CATEGORIES = [
   {
@@ -757,7 +757,7 @@ const CATEGORIES = [
       ['Which logo is correct? 💜 The purple chocolate brand', 'Cadbury', "Cadbury's", 'Cadburys', { note: 'The logo just says Cadbury, though plenty of people say "Cadbury\'s".' }],
       ['Which logo is correct? 🐰 The strawberry and chocolate milkshake powder', 'Nesquik', 'Nesquick', 'Nestquik', { note: 'Quik with no C.' }],
       ['Which logo is correct? 🧸 The baby and toddler toy brand', 'Fisher-Price', 'Fisher Price', 'Fischer-Price'],
-      ['Which logo is correct? 🍭 The lollipop brand with a logo by Salvador Dalí', 'Chupa Chups', 'Chupa Chupa', 'Chupa Chops', { note: 'And yes, the daisy logo really was designed by Dalí.' }],
+      ['Which logo is correct? 🍭 The lollipop brand with a logo by Salvador Dalí', 'Chupa Chups', 'Chupa Chupa', 'Chupa Chops', { note: 'And yes, the daisy logo really was designed by Dalí.', img: '/img/logos/chupachups.svg' }],
       ['Which logo is correct? 🍹 The American drink mix with a jug mascot', 'Kool-Aid', 'Kool Aid', 'Cool-Aid'],
       ['Which is correct? 🎩 The Monopoly mascot, Rich Uncle Pennybags…', 'Has no monocle', 'Wears a monocle', { note: 'He has a top hat, moustache and cane, but never a monocle. People mix him up with Mr Peanut.' }],
       ['Which is correct? 🥜 Mr Peanut, the Planters mascot…', 'Wears a monocle', 'Has no monocle', { note: 'Mr Peanut is the one who really does wear a monocle.' }],
@@ -766,13 +766,13 @@ const CATEGORIES = [
       ['Which is correct? 🐒 Curious George the monkey…', 'Has no tail', 'Has a long curly tail', { note: 'No tail at all, which technically makes him an ape.' }],
       ['Which is correct? 🎀 Hello Kitty…', 'Has no mouth', 'Has a small smiling mouth', { note: 'Sanrio says it\'s so people can project their own feelings onto her.' }],
       ['Which is correct? 🐄 The Laughing Cow cheese mascot…', 'Wears Laughing Cow boxes as earrings', 'Wears gold hoop earrings', 'Wears no earrings'],
-      ['Which is correct? 🍎 In the Apple logo, the bite is taken from…', 'The right side', 'The left side', 'The top'],
-      ['How many rings are in the Audi logo? 🚗', '4', '3', '5', '6', { note: 'One for each of the four car makers that merged in 1932.' }],
-      ['How many points does the Mercedes-Benz star have? ⭐', '3', '4', '5', '6', { note: 'For land, sea and air.' }],
-      ['How many stars are in the Subaru logo? ✨', '6', '5', '7', '4', { note: 'Subaru is the Japanese name for the Pleiades star cluster.' }],
+      ['Which logo is correct? 🍎 The tech giant from California', '/img/logos/apple.svg', '/img/logos/apple-fake-mirrored.svg', { note: 'The bite is on the right-hand side.' }],
+      ['How many rings are in the Audi logo? 🚗', '4', '3', '5', '6', { note: 'One for each of the four car makers that merged in 1932.', img: '/img/logos/audi.svg' }],
+      ['How many points does the Mercedes-Benz star have? ⭐', '3', '4', '5', '6', { note: 'For land, sea and air.', img: '/img/logos/mercedes.svg' }],
+      ['How many stars are in the Subaru logo? ✨', '6', '5', '7', '4', { note: 'Subaru is the Japanese name for the Pleiades star cluster.', img: '/img/logos/subaru.svg' }],
       ['Which animal is hidden in the Toblerone mountain logo? 🏔️', 'A bear', 'A goat', 'An eagle', 'A cow', { note: 'Bern, where Toblerone was made, is the "city of bears".' }],
-      ['What is hidden between the E and the x in the FedEx logo? 📦', 'An arrow', 'A star', 'A box', 'A plane'],
-      ['How many tails does the Starbucks mermaid (siren) have? ☕', '2', '1', '3', '0'],
+      ['What is hidden between the E and the x in the FedEx logo? 📦', 'An arrow', 'A star', 'A box', 'A plane', { img: '/img/logos/fedex.svg' }],
+      ['How many tails does the Starbucks mermaid (siren) have? ☕', '2', '1', '3', '0', { img: '/img/logos/starbucks.svg' }],
     ],
   },
 ];
@@ -796,7 +796,7 @@ function buildQuiz(catIds, n, shuffle) {
     const extra = typeof q[q.length - 1] === 'object' ? q[q.length - 1] : null;
     const [question, right, ...wrong] = extra ? q.slice(0, -1) : q;
     const options = shuffle([right, ...wrong]);
-    return { q: question, options, answer: options.indexOf(right), cat: `${c.emoji} ${c.name}`, ...(extra?.note ? { note: extra.note } : {}) };
+    return { q: question, options, answer: options.indexOf(right), cat: `${c.emoji} ${c.name}`, ...(extra?.note ? { note: extra.note } : {}), ...(extra?.img ? { img: extra.img } : {}) };
   });
 }
 

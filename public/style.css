@@ -211,6 +211,13 @@ body.remote .controls { max-height: none; flex: 1; }
 /* Mandela effect logo questions: spelling, hyphens and dots need to be easy to read */
 .opts.logo .opt, .pans.logo button { font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif; font-weight: 900; letter-spacing: .02em; }
 .opts.logo .opt { font-size: max(22px, 5cqh); }
+/* Logo-picture answers sit on a white tile so dark logos stay visible */
+.optimg { height: 16cqh; max-width: 100%; background: #fff; padding: 1cqh 1.2vw; border-radius: 12px; object-fit: contain; }
+.pans .optimg { height: 64px; padding: 6px 10px; }
+.result .optimg { height: 56px; vertical-align: middle; padding: 4px 8px; }
+/* Picture shown on the reveal (e.g. the real logo) on a white card so any logo reads on the dark theme */
+.revealimg { display: block; margin: 1.5cqh auto 0; max-height: 18cqh; max-width: min(40vw, 520px); background: #fff; padding: 1.5cqh 2vw; border-radius: 16px; object-fit: contain; }
+.result .revealimg { max-height: 110px; max-width: 80%; padding: 10px 14px; margin: 8px auto; }
 .pans.logo button { font-size: 22px; text-transform: none; }
 .card { display: grid; gap: 6px; }
 .card .cell { aspect-ratio: 1; border-radius: 10px; background: var(--panel2); display: grid; place-items: center; text-align: center;
