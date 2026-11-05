@@ -15,7 +15,7 @@
 <body class="glow home">
   <header class="hnav">
     <span class="brand logo"><img src="/icon.svg" alt="" width="34" height="34" />Crowd <span>QR</span> Games</span>
-    <nav class="hlinks"><a href="#pricing">Pricing</a><a href="/host"><button class="primary">Host a game</button></a></nav>
+    <nav class="hlinks"><a href="#pricing">Pricing</a><a href="/login" id="navLogin" hidden>Log in</a><a href="/host"><button class="primary">Host a game</button></a></nav>
   </header>
 
   <main>
@@ -85,6 +85,7 @@
     <section class="section" id="pricing">
       <h2 class="center">Simple pricing</h2>
       <p class="muted center">Every plan includes every game and unlimited players. No app for guests to download.</p>
+      <p class="center trial-note" id="trialNote" hidden>Every account starts with a <b>7-day free trial</b>. No card needed.</p>
       <div class="plans">
         <div class="plan">
           <div class="plan-icon">🎟️</div>
@@ -97,7 +98,7 @@
             <li>Unlimited players</li>
             <li>Your logo and colours on screen</li>
           </ul>
-          <button class="big-btn" disabled>Coming soon</button>
+          <button class="big-btn plan-btn" disabled>Coming soon</button>
         </div>
         <div class="plan best">
           <span class="plan-badge">Most popular</span>
@@ -112,7 +113,7 @@
             <li>Your logo, colours and music library saved</li>
             <li>Cancel any time</li>
           </ul>
-          <button class="primary big-btn" disabled>Coming soon</button>
+          <button class="primary big-btn plan-btn" disabled>Coming soon</button>
         </div>
         <div class="plan">
           <div class="plan-icon">📅</div>
@@ -123,7 +124,7 @@
             <li>Everything in Monthly</li>
             <li>Two months free</li>
           </ul>
-          <button class="big-btn" disabled>Coming soon</button>
+          <button class="big-btn plan-btn" disabled>Coming soon</button>
         </div>
       </div>
     </section>
@@ -148,5 +149,20 @@
   </main>
 
   <footer class="hfoot muted">Crowd QR Games · Made for DJs</footer>
+  <script>
+    // Once accounts are switched on, the plan buttons lead to sign-up (or the account page).
+    fetch('/auth/status').then((r) => r.json()).then((s) => {
+      if (!s.accounts) return;
+      document.getElementById('trialNote').hidden = false;
+      const nav = document.getElementById('navLogin');
+      nav.hidden = false;
+      if (s.loggedIn) { nav.textContent = 'My account'; nav.href = '/account'; }
+      for (const b of document.querySelectorAll('.plan-btn')) {
+        b.disabled = false;
+        b.textContent = s.loggedIn ? 'Choose plan' : 'Start free trial';
+        b.addEventListener('click', () => { location.href = s.loggedIn ? '/account' : '/signup'; });
+      }
+    }).catch(() => {});
+  </script>
 </body>
 </html>

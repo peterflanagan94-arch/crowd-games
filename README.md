@@ -63,6 +63,27 @@ Set `PUBLIC_URL` (for example `https://games.example.com`) if the QR code should
 
 Game state lives in memory. Restarting the server ends any running rooms, which is fine for a night's gigs. Rooms expire after 12 hours idle.
 
+## Accounts and payments
+
+Hosts sign up at `/signup` and confirm their email, which starts a one-off 7-day free trial (one per email address: case, `+tags` and Gmail dots count as the same address). After that, `/account` offers the £9.99 event pass (24 hours), £12.99 a month or £129 a year through Stripe Checkout. Guests never need an account. The DJ phone remote link still works without logging in, for that room only.
+
+Accounts switch on when `DATABASE_URL` is set (Render Postgres). Without it the app keeps the `HOST_PASSWORD` lock below. Set these on the web service:
+
+| Variable | What it is |
+| --- | --- |
+| `DATABASE_URL` | Any Postgres: Render Postgres (internal URL) or Supabase (its Session pooler connection string). Tables are created on start in their own `crowdqr` schema, so a database shared with another app is safe. |
+| `DB_SCHEMA` | Optional, default `crowdqr`. |
+| `SESSION_SECRET` | Long random string that signs logins and email links. Changing it logs everyone out. |
+| `STRIPE_SECRET_KEY` | `sk_test_...` for testing, `sk_live_...` for real payments. Without it the plan buttons say "coming soon". |
+| `STRIPE_WEBHOOK_SECRET` | From a Stripe webhook to `https://<your domain>/billing/webhook` with the events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated` and `customer.subscription.deleted`. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Sends confirmation and password reset emails through Resend (verify the sending domain there). Without a key the emails are only printed to the server log. |
+| `ADMIN_EMAILS` | Comma separated emails with free full access. |
+| `STRIPE_PRICE_PASS`, `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_YEARLY` | Optional Stripe price ids. Without them the prices in `accounts.js` are used. |
+| `TRIAL_DAYS` | Optional, default 7. |
+| `SIGNUPS` | Set to `closed` before launch: only `ADMIN_EMAILS` can sign up and the home page still says "Coming soon". |
+
+For "Manage subscription", save the customer portal settings once in the Stripe dashboard (Settings, Billing, Customer portal). Run locally with `ACCOUNTS=memory npm start` to try accounts without a database; emails are printed to the terminal.
+
 ## Quiz format
 
 ```
@@ -83,4 +104,4 @@ Put `*` in front of the correct answer. Each question can have two to four answe
 npm test
 ```
 
-The tests run a quiz, number bingo and music bingo end to end over real sockets.
+The tests run a quiz, number bingo and music bingo end to end over real sockets, then sign-up, the free trial, login, password reset and Stripe webhooks.
