@@ -208,6 +208,10 @@ body.remote .controls { max-height: none; flex: 1; }
 .pans button .shape { font-size: 36px; }
 .pans button.picked { outline: 5px solid #fff; }
 .pans button.faded { opacity: .3; }
+/* Mandela effect logo questions: spelling, hyphens and dots need to be easy to read */
+.opts.logo .opt, .pans.logo button { font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif; font-weight: 900; letter-spacing: .02em; }
+.opts.logo .opt { font-size: max(22px, 5cqh); }
+.pans.logo button { font-size: 22px; text-transform: none; }
 .card { display: grid; gap: 6px; }
 .card .cell { aspect-ratio: 1; border-radius: 10px; background: var(--panel2); display: grid; place-items: center; text-align: center;
   font-weight: 800; font-size: 22px; padding: 4px; user-select: none; cursor: pointer; border: 2px solid transparent; overflow: hidden; line-height: 1.1; }

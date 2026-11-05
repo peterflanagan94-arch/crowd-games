@@ -96,13 +96,17 @@ function parseQuiz(text) {
     let cat = null;
     if (lines[0]?.startsWith('#')) { cat = lines[0].replace(/^#\s*/, ''); lines = lines.slice(1); }
     if (lines.length < 3) return null;
+    // A "> " line is a note shown after the reveal (e.g. the Mandela effect explained).
+    const note = lines.filter((l) => l.startsWith('>')).map((l) => l.replace(/^>\s*/, '')).join(' ') || null;
+    lines = lines.filter((l) => !l.startsWith('>'));
+    if (lines.length < 3) return null;
     const [q, ...opts] = lines;
     const answer = opts.findIndex((o) => o.startsWith('*'));
-    return { q, options: opts.slice(0, 4).map((o) => o.replace(/^\*\s*/, '')), answer, cat };
+    return { q, options: opts.slice(0, 4).map((o) => o.replace(/^\*\s*/, '')), answer, cat, note };
   }).filter((q) => q && q.answer >= 0 && q.answer < 4);
 }
 function quizToText(qs) {
-  return qs.map((q) => [...(q.cat ? [`# ${q.cat}`] : []), q.q, ...q.options.map((o, i) => (i === q.answer ? '*' : '') + o)].join('\n')).join('\n\n');
+  return qs.map((q) => [...(q.cat ? [`# ${q.cat}`] : []), q.q, ...q.options.map((o, i) => (i === q.answer ? '*' : '') + o), ...(q.note ? [`> ${q.note}`] : [])].join('\n')).join('\n\n');
 }
 
 // ---------- quiz categories ----------
@@ -602,7 +606,7 @@ function renderQuiz(st, g) {
     <div class="qhead">${rounds ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}${q.cat ? ` · <span class="qcat">${esc(q.cat)}</span>` : ''}</div>
     ${top}${note}
     ${g.phase === 'question' ? `<div class="timer" id="timer"></div><div class="qhead">${g.answeredCount} answered</div>` : ''}
-    <div class="opts">${opts}</div>${lb}</div>`;
+    <div class="opts ${isLogoQ(q.cat) ? 'logo' : ''}">${opts}</div>${lb}</div>`;
   if (g.phase === 'question') {
     const upd = () => {
       const left = Math.max(0, Math.ceil((g.deadline - (Date.now() + clockOffset)) / 1000));
@@ -613,6 +617,8 @@ function renderQuiz(st, g) {
   }
 }
 
+// Mandela effect logo questions show their options in a big logo-style font.
+const isLogoQ = (cat) => /Mandela/i.test(cat || '');
 const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
 // Playing card face (or back when c is null).
 function cardHtml(c, size = '') {

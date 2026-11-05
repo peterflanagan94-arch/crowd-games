@@ -235,6 +235,12 @@ server.listen(0, async () => {
   await wait(100);
   assert.ok(latest.get('Ana').game.cat, 'category shown on phones');
 
+  // Mandela effect logos: 50 questions, notes travel to the reveal
+  const logos = await (await fetch(`${url}/api/quiz-pack?cats=mandela&n=50`)).json();
+  assert.equal(logos.length, 50);
+  assert.ok(logos.every((q) => /Mandela/.test(q.cat) && q.options[q.answer] && q.options.length >= 2), 'valid logo questions');
+  assert.ok(logos.filter((q) => q.note).length >= 30, 'most logo questions explain themselves');
+
   // Raffle: tickets, prizes in order, no repeat winners, redraw, opt-in
   assert.match(latest.get('Ana').me.ticket, /^#\d{3}$/);
   assert.ok((await call(host, 'host:startRaffle', { mode: 'raffle', prizes: 'Fizz\nBar tab' })).ok);

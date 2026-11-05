@@ -344,7 +344,7 @@ function renderQuiz(g, me) {
   m.innerHTML = `<div class="center muted">${isHl || isEmoji ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}</div>
     ${qHtml}
     <div class="ptimer"><div id="bar"></div></div>
-    <div class="pans" style="${isHl ? 'grid-template-columns:1fr' : ''}">${g.options.map((o, i) => `<button class="c${isHl ? 3 - i * 3 : i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>
+    <div class="pans ${/Mandela/i.test(g.cat || '') ? 'logo' : ''}" style="${isHl ? 'grid-template-columns:1fr' : ''}">${g.options.map((o, i) => `<button class="c${isHl ? 3 - i * 3 : i} ${answered ? (g.myChoice === i ? 'picked' : 'faded') : ''}" data-i="${i}" ${answered ? 'disabled' : ''}>
       <span class="shape">${shapes[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
     ${answered ? '<div class="center muted">Answer locked in! Waiting for everyone…</div>' : ''}`;
   m.querySelectorAll('.pans button').forEach((b) => (b.onclick = () => {
