@@ -12,6 +12,7 @@ const karaoke = require('./karaoke');
 const { importPlaylist } = require('./playlist');
 const { PLAYLISTS, YT } = require('./music-library');
 const { EMOJI_CATEGORIES, buildEmojiRound, emojiQuestions } = require('./emoji-packs');
+const { createAccounts } = require('./accounts');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -48,8 +49,12 @@ const setHostCookie = (req, res) => {
 app.use((_req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex, nofollow'); next(); });
 app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nDisallow: /\n'));
 
+// Host accounts (when DATABASE_URL or ACCOUNTS=memory is set) replace the shared password.
+const accounts = createAccounts({ baseUrl: (req) => baseUrl(req) });
+if (accounts.enabled) accounts.install(app);
+
 const failedLogins = new Map(); // ip -> { n, until }
-app.post('/login', express.urlencoded({ extended: false, limit: '2kb' }), (req, res) => {
+if (!accounts.enabled) app.post('/login', express.urlencoded({ extended: false, limit: '2kb' }), (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
   const f = failedLogins.get(ip);
   if (f && f.until > Date.now()) return res.redirect('/login?err=wait');
@@ -63,13 +68,42 @@ app.post('/login', express.urlencoded({ extended: false, limit: '2kb' }), (req, 
   failedLogins.set(ip, { n, until: n >= 5 ? Date.now() + 60_000 : 0 });
   res.redirect('/login?err=1&next=' + encodeURIComponent(next));
 });
-app.get('/logout', (_req, res) => {
+if (!accounts.enabled) app.get('/logout', (_req, res) => {
   res.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   res.redirect('/');
 });
+if (!accounts.enabled) app.get('/auth/status', (_req, res) => res.json({ accounts: false }));
+
+// The DJ phone remote link carries the room's host key. In accounts mode it gets a cookie
+// that only opens the host screen's question packs while that room exists.
+const REMOTE = 'cg_remote';
+const remoteRoom = (cookieHeader) => {
+  const [code, key] = readCookie(cookieHeader, REMOTE).split('.');
+  const r = code && rooms.get(code);
+  return r && key && safeEqual(key, r.hostKey) ? r : null;
+};
+
+app.use(async (req, res, next) => {
+  if (!accounts.enabled) return next();
+  const gated = req.path === '/host' || req.path === '/host.html' || req.path.startsWith('/api/');
+  if (!gated) return next();
+  try {
+    const a = accounts.access(await accounts.userFromCookie(req.headers.cookie));
+    if (a.ok) return next();
+    const r = req.path.startsWith('/host') && rooms.get(String(req.query.room || '').toUpperCase());
+    if (r && req.query.key && safeEqual(req.query.key, r.hostKey)) {
+      const secure = (req.headers['x-forwarded-proto'] || req.protocol) === 'https' ? '; Secure' : '';
+      res.setHeader('Set-Cookie', `${REMOTE}=${r.code}.${r.hostKey}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${secure}`);
+      return next();
+    }
+    if (req.path.startsWith('/api/') && remoteRoom(req.headers.cookie)) return next();
+    if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Login required' });
+    res.redirect(a.reason === 'login' ? '/login?next=' + encodeURIComponent(req.originalUrl) : '/account');
+  } catch (e) { next(e); }
+});
 
 app.use((req, res, next) => {
-  if (!HOST_PASSWORD) return next();
+  if (!HOST_PASSWORD || accounts.enabled) return next();
   const gated = req.path === '/host' || req.path === '/host.html' || req.path.startsWith('/api/');
   if (!gated || isHostAuthed(req.headers.cookie)) return next();
   // The DJ phone remote link carries the room's host key: treat it as a login for that phone.
@@ -825,8 +859,12 @@ io.on('connection', (socket) => {
     broadcast(room);
   };
 
-  socket.on('host:create', (_d, cb) => {
-    if (!isHostAuthed(socket.handshake.headers.cookie)) return ack(cb, { error: 'Login required' });
+  socket.on('host:create', async (_d, cb) => {
+    const cookie = socket.handshake.headers.cookie;
+    const allowed = accounts.enabled
+      ? accounts.access(await accounts.userFromCookie(cookie).catch(() => null)).ok
+      : isHostAuthed(cookie);
+    if (!allowed) return ack(cb, { error: 'Login required' });
     room = createRoom();
     isHost = true;
     room.hostSockets.add(socket.id);
@@ -1085,4 +1123,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { server, rooms };
+module.exports = { server, rooms, accounts };
