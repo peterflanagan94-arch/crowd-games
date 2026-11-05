@@ -251,6 +251,7 @@ function startQuiz(room, { questions, seconds }, variant = 'quiz') {
       hl: q.hl,
       cat: q.cat ? clean(q.cat, 40) : null,
       note: q.note ? clean(q.note, 120) : null, // shown after the reveal, e.g. the artist
+      img: typeof q.img === 'string' && /^\/img\/logos\/[\w.-]+\.(png|svg|jpe?g|webp)$/i.test(q.img) ? q.img : null, // revealed picture, e.g. the real logo
       // Card rounds: "any" = every guess counts (an Ace with aces high-or-low), "none" = a pair, nobody scores.
       outcome: q.outcome === 'any' || q.outcome === 'none' ? q.outcome : null,
     }))
@@ -735,6 +736,7 @@ function hostView(room) {
         hl: q?.hl ? hlView(q.hl, g.phase === 'reveal', q.outcome) : null,
         answer: g.phase === 'reveal' ? q.answer : null,
         note: g.phase === 'reveal' ? q.note : null,
+        img: g.phase === 'reveal' ? q.img : null,
         answeredCount: g.answers.size, counts: g.phase === 'reveal' ? counts : null,
       },
     };
@@ -809,6 +811,7 @@ function playerView(room, p) {
         myChoice: mine ? mine.choice : null,
         answer: g.phase === 'reveal' ? q.answer : null,
         note: g.phase === 'reveal' ? q.note : null,
+        img: g.phase === 'reveal' ? q.img : null,
         lastPoints: g.phase === 'reveal' ? g.lastPoints[p.id] || 0 : null,
         top: g.phase === 'final' ? leaderboard(room).slice(0, 3) : null,
       },

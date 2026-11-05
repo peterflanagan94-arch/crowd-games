@@ -96,13 +96,19 @@ function parseQuiz(text) {
     let cat = null;
     if (lines[0]?.startsWith('#')) { cat = lines[0].replace(/^#\s*/, ''); lines = lines.slice(1); }
     if (lines.length < 3) return null;
+    // A "> " line is a note shown after the reveal (e.g. the Mandela effect explained).
+    const note = lines.filter((l) => l.startsWith('>')).map((l) => l.replace(/^>\s*/, '')).join(' ') || null;
+    // A "@ /img/logos/…" line is a picture shown after the reveal (e.g. the real logo).
+    const img = lines.find((l) => l.startsWith('@'))?.replace(/^@\s*/, '') || null;
+    lines = lines.filter((l) => !l.startsWith('>') && !l.startsWith('@'));
+    if (lines.length < 3) return null;
     const [q, ...opts] = lines;
     const answer = opts.findIndex((o) => o.startsWith('*'));
-    return { q, options: opts.slice(0, 4).map((o) => o.replace(/^\*\s*/, '')), answer, cat };
+    return { q, options: opts.slice(0, 4).map((o) => o.replace(/^\*\s*/, '')), answer, cat, note, img };
   }).filter((q) => q && q.answer >= 0 && q.answer < 4);
 }
 function quizToText(qs) {
-  return qs.map((q) => [...(q.cat ? [`# ${q.cat}`] : []), q.q, ...q.options.map((o, i) => (i === q.answer ? '*' : '') + o)].join('\n')).join('\n\n');
+  return qs.map((q) => [...(q.cat ? [`# ${q.cat}`] : []), q.q, ...q.options.map((o, i) => (i === q.answer ? '*' : '') + o), ...(q.note ? [`> ${q.note}`] : []), ...(q.img ? [`@ ${q.img}`] : [])].join('\n')).join('\n\n');
 }
 
 // ---------- quiz categories ----------
@@ -593,16 +599,16 @@ function renderQuiz(st, g) {
     const right = outcome === 'any' || (!outcome && i === g.answer);
     const cls = g.phase === 'reveal' ? (right ? 'right' : 'dim') : '';
     const count = g.counts ? `<span class="count">${g.counts[i]}</span>` : '';
-    return `<div class="opt c${isHl ? 3 - i * 3 : i} ${cls}"><span class="shape">${isHl ? ['▲', '▼'][i] : SHAPES[i]}</span>${esc(o)}${count}</div>`;
+    return `<div class="opt c${isHl ? 3 - i * 3 : i} ${cls}"><span class="shape">${isHl ? ['▲', '▼'][i] : SHAPES[i]}</span>${optHtml(o)}${count}</div>`;
   }).join('');
   const lb = g.phase === 'reveal' ? `<div style="margin-top:3vh;width:min(70vw,900px)">${leaderboardHtml('Leaderboard', 5)}</div>` : '';
   const top = isHl ? hlCards(g.hl) : isEmoji ? `<div class="emojiq">${esc(q.q)}</div>` : `<div class="qtext">${esc(q.q)}</div>`;
-  const note = g.note ? `<div class="hlnote">${esc(g.note)}</div>` : '';
+  const note = (g.img ? `<img class="revealimg" src="${esc(g.img)}" alt="">` : '') + (g.note ? `<div class="hlnote">${esc(g.note)}</div>` : '');
   st.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center">
     <div class="qhead">${rounds ? 'Round' : 'Question'} ${g.index + 1} of ${g.total}${q.cat ? ` · <span class="qcat">${esc(q.cat)}</span>` : ''}</div>
     ${top}${note}
     ${g.phase === 'question' ? `<div class="timer" id="timer"></div><div class="qhead">${g.answeredCount} answered</div>` : ''}
-    <div class="opts">${opts}</div>${lb}</div>`;
+    <div class="opts ${isLogoQ(q.cat) ? 'logo' : ''}">${opts}</div>${lb}</div>`;
   if (g.phase === 'question') {
     const upd = () => {
       const left = Math.max(0, Math.ceil((g.deadline - (Date.now() + clockOffset)) / 1000));
@@ -613,6 +619,11 @@ function renderQuiz(st, g) {
   }
 }
 
+// Mandela effect logo questions show their options in a big logo-style font.
+const isLogoQ = (cat) => /Mandela/i.test(cat || '');
+// An answer can be a logo picture: the option is then the file's path under /img/logos/.
+const isImgOpt = (o) => /^\/img\/logos\/[\w.-]+\.(png|svg|jpe?g|webp)$/i.test(o || '');
+const optHtml = (o) => (isImgOpt(o) ? `<img class="optimg" src="${esc(o)}" alt="">` : esc(o));
 const fmtNum = (n) => (Math.abs(n) >= 1e4 ? n.toLocaleString() : String(n));
 // Playing card face (or back when c is null).
 function cardHtml(c, size = '') {

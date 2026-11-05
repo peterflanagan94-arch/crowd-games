@@ -208,6 +208,20 @@ body.remote .controls { max-height: none; flex: 1; }
 .pans button .shape { font-size: 36px; }
 .pans button.picked { outline: 5px solid #fff; }
 .pans button.faded { opacity: .3; }
+/* Mandela effect logo questions: spelling, hyphens and dots need to be easy to read */
+.opts.logo .opt, .pans.logo button { font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif; font-weight: 900; letter-spacing: .02em; }
+.opts.logo .opt { font-size: max(22px, 5cqh); }
+/* Logo-picture answers sit on a white tile so dark logos stay visible */
+.optimg { height: 26cqh; max-width: 85%; background: #fff; padding: 1.2cqh 1.2vw; border-radius: 12px; object-fit: contain; }
+.opt:has(.optimg) { justify-content: center; padding: 2cqh 1vw; }
+.opt:has(.optimg) .shape { position: absolute; left: 1.2vw; top: 1.2cqh; }
+.pans .optimg { width: 100%; height: auto; max-height: 200px; padding: 8px; }
+.pans button:has(.optimg) > span:last-child { width: 100%; }
+.result .optimg { height: 56px; vertical-align: middle; padding: 4px 8px; }
+/* Picture shown on the reveal (e.g. the real logo) on a white card so any logo reads on the dark theme */
+.revealimg { display: block; margin: 1.5cqh auto 0; max-height: 18cqh; max-width: min(40vw, 520px); background: #fff; padding: 1.5cqh 2vw; border-radius: 16px; object-fit: contain; }
+.result .revealimg { max-height: 110px; max-width: 80%; padding: 10px 14px; margin: 8px auto; }
+.pans.logo button { font-size: 22px; text-transform: none; }
 .card { display: grid; gap: 6px; }
 .card .cell { aspect-ratio: 1; border-radius: 10px; background: var(--panel2); display: grid; place-items: center; text-align: center;
   font-weight: 800; font-size: 22px; padding: 4px; user-select: none; cursor: pointer; border: 2px solid transparent; overflow: hidden; line-height: 1.1; }
@@ -501,3 +515,4 @@ label.inline input { width: auto; }
 .kstage .qhead { text-align: left; }
 .result.good + .center { margin-top: 12px; }
 .kq-yt .bad { color: var(--bad); white-space: nowrap; }
+.pans:has(.optimg) { grid-template-columns: 1fr; }

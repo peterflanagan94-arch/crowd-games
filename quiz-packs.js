@@ -1,4 +1,5 @@
-// Quiz question packs by category. Each question: [question, correct answer, wrong, wrong, wrong].
+// Quiz question packs by category. Each question: [question, correct answer, wrong, wrong, wrong],
+// optionally ending with { note, img } to show after the reveal (img = a file in public/img/logos).
 // The correct answer is listed first here; answer order is shuffled when a quiz is built.
 const CATEGORIES = [
   {
@@ -716,6 +717,66 @@ const CATEGORIES = [
       ['Which song includes the line "Chestnuts roasting on an open fire"?', 'The Christmas Song', 'White Christmas', 'Let It Snow', 'Sleigh Ride'],
     ],
   },
+  {
+    // Mandela effect: brands people "remember" differently. Options are plain text, never
+    // official artwork, and the host screen shows them in a big logo-style font.
+    // A trailing { note } is shown on the big screen and phones after the reveal.
+    id: 'mandela', name: 'Mandela Effect Logos', emoji: '🤯',
+    questions: [
+      ['Which logo is correct? 🍫 The four-finger chocolate wafer', 'KitKat', 'Kit-Kat', { note: 'Loads of people remember a hyphen. There has never been one.' }],
+      ['Which logo is correct? 🥣 The rainbow cereal hoops with a toucan', 'Froot Loops', 'Fruit Loops', 'Fruit Loop\'s', { note: 'It\'s "Froot" with two Os.' }],
+      ['Which logo is correct? 🌸 The fabric and air freshener spray', '/img/logos/febreze-real.png', '/img/logos/febreze-fake.png', { note: 'Febreze has only one E in the middle.' }],
+      ['Which logo is correct? 🧀 The square cheese crackers', 'Cheez-It', 'Cheez-Its', 'Cheese-It', { note: 'No S on the end, even though there are lots in the box.' }],
+      ['Which logo is correct? 🌭 The American hot dog and bacon brand', 'Oscar Mayer', 'Oscar Meyer', 'Oscar Mayor', { note: 'It\'s "Mayer", but the jingle makes everyone think "Meyer".' }],
+      ['Which logo is correct? 🐔 The American chicken sandwich chain', 'Chick-fil-A', 'Chic-fil-A', 'Chick-Fil-A', { note: 'Two hyphens, a lower-case "fil" and a capital A.' }],
+      ['Which logo is correct? 👟 The trainer brand with the big S', 'Skechers', 'Sketchers', "Skecher's", { note: 'No T in it.' }],
+      ['Which logo is correct? 🥣 The cereal company with the red signature', "Kellogg's", "Kellog's", 'Kelloggs', { note: 'Double G, and an apostrophe.' }],
+      ['Which logo is correct? 🍦 The posh tub ice cream', 'Häagen-Dazs', 'Haägen-Dazs', 'Häagen-Däzs', 'Haagen Daz', { note: 'The dots go over the first A. The name was made up to sound Danish.' }],
+      ['Which logo is correct? 🐰 The Bugs Bunny cartoons', 'Looney Tunes', 'Looney Toons', 'Loony Tunes', { note: '"Tunes", as a nod to Disney\'s Silly Symphonies.' }],
+      ['Which is the real book title? 🐻 The bear family picture books', 'The Berenstain Bears', 'The Berenstein Bears', 'The Bernstein Bears', { note: 'The most famous Mandela effect of all. It has always been "-stain".' }],
+      ['Which logo is correct? 🥤 The fizzy drink with 23 flavours', 'Dr Pepper', 'Dr. Pepper', 'Doctor Pepper', { note: 'The full stop was dropped from the logo in the 1950s.' }],
+      ['Which logo is correct? 🧸 The giant toy shop chain', 'Toys Я Us', 'Toys R Us', 'Toys "R" Us', { note: 'The R in the logo is backwards, like a child wrote it.' }],
+      ['Which logo is correct? 🐭 The American pizza and arcade chain', 'Chuck E. Cheese', 'Chucky Cheese', 'Chuck-E-Cheese', { note: 'Short for Charles Entertainment Cheese.' }],
+      ['Which logo is correct? 🛍️ The resealable food bags', 'Ziploc', 'Ziplock', 'Zip-Loc', { note: 'No K on the end.' }],
+      ['Which logo is correct? 🍮 The wobbly American jelly', 'Jell-O', 'Jello', 'Jell-o', { note: 'There\'s a hyphen and a capital O.' }],
+      ['Which logo is correct? 🥣 Snap, Crackle and Pop\'s cereal', 'Rice Krispies', 'Rice Crispies', 'Rice Krispys'],
+      ['Which logo is correct? 🐵 The chocolatey cereal with a monkey', 'Coco Pops', 'Cocoa Pops', 'Choco Pops', { note: 'It was briefly renamed Choco Krispies in 1998, until the public voted it back.' }],
+      ['Which logo is correct? 🥔 Gary Lineker\'s crisps', 'Walkers', "Walker's", 'Walkers\'', { note: 'No apostrophe anywhere.' }],
+      ['Which logo is correct? 🥤 Scotland\'s orange fizzy drink', 'IRN-BRU', 'IRN BRU', 'IRON BREW', { note: 'There\'s a hyphen, and "Brew" lost its letters in 1946.' }],
+      ['Which logo is correct? 🛍️ The famous Oxford Street department store', 'Selfridges', "Selfridge's", 'Selfriges', { note: 'No apostrophe.' }],
+      ['Which logo is correct? 🍪 The digestive biscuit maker', "McVitie's", 'McVities', "McVittie's", { note: 'It does have an apostrophe.' }],
+      ['Which logo is correct? 🍕 The pizza delivery chain with a domino', "Domino's", 'Dominos', 'Dominoes'],
+      ['Which logo is correct? 🥐 The UK sausage roll bakery', 'Greggs', "Gregg's", 'Gregg', { note: 'No apostrophe.' }],
+      ['Which logo is correct? 🛒 The orange supermarket', "Sainsbury's", 'Sainsburys', "Sainsburies", { note: 'It keeps its apostrophe.' }],
+      ['Which logo is correct? 🌶️ The peri-peri chicken restaurant', "Nando's", 'Nandos', "Nandoes"],
+      ['Which logo is correct? 🥚 The mayonnaise in the blue-ribbon jar', "Hellmann's", "Hellman's", "Helmann's", { note: 'Two Ls and two Ns.' }],
+      ['Which logo is correct? 🟡 The English mustard in the yellow tin', "Colman's", "Coleman's", "Colmans", { note: 'No E. Named after Jeremiah Colman.' }],
+      ['Which logo is correct? 🍫 The light honeycomb chocolate balls', 'Maltesers', 'Malteasers', 'Maltezers', { note: 'Mixing "malt" and "teasers", but with no A.' }],
+      ['Which logo is correct? 🍓 The toaster pastries', 'Pop-Tarts', 'Pop Tarts', 'PopTarts'],
+      ['Which logo is correct? 🍩 The glazed doughnut chain', 'Krispy Kreme', 'Krispie Kreme', 'Krispy Creme', 'Crispy Kreme'],
+      ['Which logo is correct? 💜 The purple chocolate brand', 'Cadbury', "Cadbury's", 'Cadburys', { note: 'The logo just says Cadbury, though plenty of people say "Cadbury\'s".' }],
+      ['Which logo is correct? 🐰 The strawberry and chocolate milkshake powder', 'Nesquik', 'Nesquick', 'Nestquik', { note: 'Quik with no C.' }],
+      ['Which logo is correct? 🧸 The baby and toddler toy brand', 'Fisher-Price', 'Fisher Price', 'Fischer-Price'],
+      ['Which logo is correct? 🍭 The lollipop brand with a logo by Salvador Dalí', 'Chupa Chups', 'Chupa Chupa', 'Chupa Chops', { note: 'And yes, the daisy logo really was designed by Dalí.', img: '/img/logos/chupachups.svg' }],
+      ['Which logo is correct? 🍹 The American drink mix with a jug mascot', 'Kool-Aid', 'Kool Aid', 'Cool-Aid'],
+      ['Which is correct? 🎩 The Monopoly mascot, Rich Uncle Pennybags…', 'Has no monocle', 'Wears a monocle', { note: 'He has a top hat, moustache and cane, but never a monocle. People mix him up with Mr Peanut.' }],
+      ['Which is correct? 🥜 Mr Peanut, the Planters mascot…', 'Wears a monocle', 'Has no monocle', { note: 'Mr Peanut is the one who really does wear a monocle.' }],
+      ['Which is correct? ⚡ Pikachu\'s tail…', 'Is yellow with a brown base', 'Has a black tip', { note: 'Only the ears have black tips.' }],
+      ['Which logo is correct? 👕 The underwear and T-shirt brand', '/img/logos/fruit-of-the-loom-real.png', '/img/logos/fruit-of-the-loom-fake.png', { note: 'Lots of people swear there was a horn of plenty behind the fruit. The company says there never was.' }],
+      ['Which is correct? 🐒 Curious George the monkey…', 'Has no tail', 'Has a long curly tail', { note: 'No tail at all, which technically makes him an ape.' }],
+      ['Which is correct? 🎀 Hello Kitty…', 'Has no mouth', 'Has a small smiling mouth', { note: 'Sanrio says it\'s so people can project their own feelings onto her.' }],
+      ['Which is correct? 🐄 The Laughing Cow cheese mascot…', 'Wears Laughing Cow boxes as earrings', 'Wears gold hoop earrings', 'Wears no earrings'],
+      ['Which logo is correct? 🍎 The tech giant from California', '/img/logos/apple.svg', '/img/logos/apple-fake-mirrored.svg', { note: 'The bite is on the right-hand side.' }],
+      ['Which logo is correct? 🥤 The world\'s best-selling cola', '/img/logos/coca-cola-real.png', '/img/logos/coca-cola-fake.png', { note: 'There\'s a little dash between Coca and Cola.' }],
+      ['Which logo is correct? 🚗 The Swedish car maker', '/img/logos/volvo-real.png', '/img/logos/volvo-fake.png', { note: 'The arrow points up and to the right. It\'s the old symbol for iron.' }],
+      ['How many rings are in the Audi logo? 🚗', '4', '3', '5', '6', { note: 'One for each of the four car makers that merged in 1932.', img: '/img/logos/audi.svg' }],
+      ['How many points does the Mercedes-Benz star have? ⭐', '3', '4', '5', '6', { note: 'For land, sea and air.', img: '/img/logos/mercedes.svg' }],
+      ['How many stars are in the Subaru logo? ✨', '6', '5', '7', '4', { note: 'Subaru is the Japanese name for the Pleiades star cluster.', img: '/img/logos/subaru.svg' }],
+      ['Which animal is hidden in the Toblerone mountain logo? 🏔️', 'A bear', 'A goat', 'An eagle', 'A cow', { note: 'Bern, where Toblerone was made, is the "city of bears".' }],
+      ['What is hidden between the E and the x in the FedEx logo? 📦', 'An arrow', 'A star', 'A box', 'A plane', { img: '/img/logos/fedex.svg' }],
+      ['How many tails does the Starbucks mermaid (siren) have? ☕', '2', '1', '3', '0', { img: '/img/logos/starbucks.svg' }],
+    ],
+  },
 ];
 
 // Build a quiz from the chosen categories. Mixed quizzes take questions round-robin
@@ -734,9 +795,10 @@ function buildQuiz(catIds, n, shuffle) {
     if (!added) break;
   }
   return shuffle(out).map(({ c, q }) => {
-    const [question, right, ...wrong] = q;
+    const extra = typeof q[q.length - 1] === 'object' ? q[q.length - 1] : null;
+    const [question, right, ...wrong] = extra ? q.slice(0, -1) : q;
     const options = shuffle([right, ...wrong]);
-    return { q: question, options, answer: options.indexOf(right), cat: `${c.emoji} ${c.name}` };
+    return { q: question, options, answer: options.indexOf(right), cat: `${c.emoji} ${c.name}`, ...(extra?.note ? { note: extra.note } : {}), ...(extra?.img ? { img: extra.img } : {}) };
   });
 }
 
