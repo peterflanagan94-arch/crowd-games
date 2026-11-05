@@ -12,6 +12,7 @@
 //   RESEND_API_KEY, EMAIL_FROM  for confirmation and password reset emails (else they're logged)
 //   ADMIN_EMAILS           comma separated emails that always have full access (no payment)
 //   TRIAL_DAYS             length of the free trial, default 7
+//   SIGNUPS=closed         pre-launch: only ADMIN_EMAILS can sign up, and the home page still says "coming soon"
 const crypto = require('crypto');
 const express = require('express');
 const { memoryStore, pgStore } = require('./store');
@@ -83,6 +84,7 @@ function createAccounts({ baseUrl }) {
 
   const store = process.env.DATABASE_URL ? pgStore(process.env.DATABASE_URL) : memoryStore();
   const TRIAL_MS = (Number(process.env.TRIAL_DAYS) || 7) * DAY;
+  const SIGNUPS_OPEN = process.env.SIGNUPS !== 'closed';
   const ADMINS = new Set(String(process.env.ADMIN_EMAILS || '').split(',').map(emailKey).filter(Boolean));
   let SECRET = process.env.SESSION_SECRET || '';
   if (!SECRET) {
@@ -232,7 +234,7 @@ function createAccounts({ baseUrl }) {
 
     app.get('/auth/status', withUser((_req, res, u) => {
       const a = access(u);
-      res.json({ accounts: true, loggedIn: !!u, access: a.ok, plan: a.plan || null, payments: !!stripe });
+      res.json({ accounts: SIGNUPS_OPEN, loggedIn: !!u, access: a.ok, plan: a.plan || null, payments: !!stripe });
     }));
 
     const signupForm = (msg = '', email = '') => page('Start your free trial', `
@@ -254,6 +256,7 @@ function createAccounts({ baseUrl }) {
       if (!validEmail(email)) return res.status(400).send(signupForm("That email doesn't look right.", email));
       if (password.length < 8 || password.length > 200) return res.status(400).send(signupForm('Use a password of at least 8 characters.', email));
       const key = emailKey(email);
+      if (!SIGNUPS_OPEN && !ADMINS.has(key)) return res.status(403).send(signupForm("Sign-ups aren't open yet. Check back soon!", email));
       const u = await store.createUser({ email, email_key: key, pass_hash: hashPassword(password) });
       if (!u) return res.status(409).send(signupForm('That email already has an account (each email gets one free trial). Log in instead, or reset your password.', email));
       await sendVerify(req, u);

@@ -80,6 +80,7 @@ Accounts switch on when `DATABASE_URL` is set (Render Postgres). Without it the 
 | `ADMIN_EMAILS` | Comma separated emails with free full access. |
 | `STRIPE_PRICE_PASS`, `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_YEARLY` | Optional Stripe price ids. Without them the prices in `accounts.js` are used. |
 | `TRIAL_DAYS` | Optional, default 7. |
+| `SIGNUPS` | Set to `closed` before launch: only `ADMIN_EMAILS` can sign up and the home page still says "Coming soon". |
 
 For "Manage subscription", save the customer portal settings once in the Stripe dashboard (Settings, Billing, Customer portal). Run locally with `ACCOUNTS=memory npm start` to try accounts without a database; emails are printed to the terminal.
 

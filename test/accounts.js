@@ -146,6 +146,21 @@ server.listen(0, async () => {
   res = await req('/signup', { form: { email: 'boss@example.com', password: 'longenough' } });
   assert.equal((await req('/host', { cookie: cookieFrom(res) })).status, 200);
 
+  // Pre-launch: only admin emails can sign up.
+  process.env.SIGNUPS = 'closed';
+  delete require.cache[require.resolve('../accounts')];
+  const closed = require('../accounts').createAccounts({ baseUrl: () => url });
+  const express = require('express');
+  const app2 = express();
+  closed.install(app2);
+  const srv2 = app2.listen(0);
+  const url2 = `http://localhost:${srv2.address().port}`;
+  const post2 = (email) => fetch(url2 + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email, password: 'longenough' }).toString() });
+  assert.equal((await post2('someone@example.com')).status, 403);
+  assert.equal((await post2('boss@example.com')).status, 302);
+  assert.equal((await (await fetch(url2 + '/auth/status')).json()).accounts, false, 'home page keeps "coming soon"');
+  srv2.close();
+
   console.log('accounts test passed');
   rooms.clear();
   process.exit(0);
