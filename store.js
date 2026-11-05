@@ -45,12 +45,16 @@ function pgStore(url) {
   const host = new URL(url).hostname;
   const ssl = !/sslmode=disable/.test(url) && host.includes('.') && !/^(localhost|127\.0\.0\.1)$/.test(host);
   const pool = new Pool({ connectionString: url, ssl: ssl ? { rejectUnauthorized: false } : false, max: 5 });
+  // Our tables live in their own schema, so the database can be shared with another app.
+  const S = process.env.DB_SCHEMA || 'crowdqr';
+  if (!/^[a-z_][a-z0-9_]*$/.test(S)) throw new Error('DB_SCHEMA must be lowercase letters, digits and _');
   const one = async (sql, args) => (await pool.query(sql, args)).rows[0] || null;
   return {
     kind: 'postgres',
     async init() {
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE SCHEMA IF NOT EXISTS ${S};
+        CREATE TABLE IF NOT EXISTS ${S}.users (
           id SERIAL PRIMARY KEY,
           email TEXT NOT NULL,
           email_key TEXT NOT NULL UNIQUE,
@@ -67,28 +71,28 @@ function pgStore(url) {
           session_ver INTEGER NOT NULL DEFAULT 0,
           comp BOOLEAN
         );
-        CREATE INDEX IF NOT EXISTS users_customer ON users (stripe_customer_id);
-        CREATE TABLE IF NOT EXISTS payments (
+        CREATE INDEX IF NOT EXISTS users_customer ON ${S}.users (stripe_customer_id);
+        CREATE TABLE IF NOT EXISTS ${S}.payments (
           session_id TEXT PRIMARY KEY,
           user_id INTEGER,
           plan TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );`);
     },
-    getUser: (id) => one('SELECT * FROM users WHERE id = $1', [Number(id)]),
-    getUserByKey: (key) => one('SELECT * FROM users WHERE email_key = $1', [key]),
-    getUserByCustomer: (cid) => one('SELECT * FROM users WHERE stripe_customer_id = $1', [cid]),
+    getUser: (id) => one(`SELECT * FROM ${S}.users WHERE id = $1`, [Number(id)]),
+    getUserByKey: (key) => one(`SELECT * FROM ${S}.users WHERE email_key = $1`, [key]),
+    getUserByCustomer: (cid) => one(`SELECT * FROM ${S}.users WHERE stripe_customer_id = $1`, [cid]),
     createUser: ({ email, email_key, pass_hash }) => one(
-      'INSERT INTO users (email, email_key, pass_hash) VALUES ($1, $2, $3) ON CONFLICT (email_key) DO NOTHING RETURNING *',
+      `INSERT INTO ${S}.users (email, email_key, pass_hash) VALUES ($1, $2, $3) ON CONFLICT (email_key) DO NOTHING RETURNING *`,
       [email, email_key, pass_hash]),
     async updateUser(id, patch) {
       const keys = Object.keys(patch).filter((k) => FIELDS.includes(k));
       if (!keys.length) return this.getUser(id);
       const set = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-      return one(`UPDATE users SET ${set} WHERE id = $1 RETURNING *`, [Number(id), ...keys.map((k) => patch[k])]);
+      return one(`UPDATE ${S}.users SET ${set} WHERE id = $1 RETURNING *`, [Number(id), ...keys.map((k) => patch[k])]);
     },
     async recordPayment(sessionId, userId, plan) {
-      const r = await pool.query('INSERT INTO payments (session_id, user_id, plan) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      const r = await pool.query(`INSERT INTO ${S}.payments (session_id, user_id, plan) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
         [sessionId, userId, plan]);
       return r.rowCount === 1;
     },
