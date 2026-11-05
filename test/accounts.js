@@ -148,6 +148,7 @@ server.listen(0, async () => {
 
   // Pre-launch: only admin emails can sign up.
   process.env.SIGNUPS = 'closed';
+  process.env.ADMIN_EMAILS = 'boss@example.com,chief@example.com';
   delete require.cache[require.resolve('../accounts')];
   const closed = require('../accounts').createAccounts({ baseUrl: () => url });
   const express = require('express');
@@ -157,7 +158,7 @@ server.listen(0, async () => {
   const url2 = `http://localhost:${srv2.address().port}`;
   const post2 = (email) => fetch(url2 + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email, password: 'longenough' }).toString() });
   assert.equal((await post2('someone@example.com')).status, 403);
-  assert.equal((await post2('boss@example.com')).status, 302);
+  assert.equal((await post2('chief@example.com')).status, 302);
   assert.equal((await (await fetch(url2 + '/auth/status')).json()).accounts, false, 'home page keeps "coming soon"');
   srv2.close();
 
