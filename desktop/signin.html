@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self'" />
+  <title>Crowd QR Games · Sign in</title>
+  <link rel="stylesheet" href="../public/style.css" />
+  <style>
+    .first-time { color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .linkish { background: none; border: 0; padding: 0; color: var(--accent2); font: inherit; cursor: pointer; text-decoration: underline; }
+  </style>
+</head>
+<body class="glow home">
+  <main class="login-wrap">
+    <div class="join-card login-card acct">
+      <div class="brand logo"><img src="../public/icon.svg" alt="" width="34" height="34" />Crowd <span>QR</span> Games</div>
+      <h2>Sign in</h2>
+      <p class="first-time">Use your Crowd QR Games account. You only need internet to sign in: after that the app works offline at your events, and renews itself whenever you're online.</p>
+      <p id="msg" class="login-err" hidden></p>
+      <form id="f">
+        <input id="email" type="email" placeholder="Email" autocomplete="email" required aria-label="Email" />
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" required aria-label="Password" />
+        <button id="go" class="primary big-btn">Sign in</button>
+      </form>
+      <p class="muted small">No account yet? <button class="linkish" data-route="/signup">Start a free trial</button> · <button class="linkish" data-route="/forgot">Forgot password</button></p>
+    </div>
+  </main>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const msg = document.getElementById('msg');
+    const say = (t, ok) => { msg.textContent = t; msg.hidden = !t; msg.className = ok ? 'login-ok' : 'login-err'; };
+    if (q.get('msg')) say(q.get('msg'), q.get('msg') === 'Signed out.');
+    document.querySelectorAll('[data-route]').forEach((b) => b.addEventListener('click', () => window.crowd.openSite(b.dataset.route)));
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const go = document.getElementById('go');
+      go.disabled = true; go.textContent = 'Signing in…'; say('');
+      const r = await window.crowd.signIn(document.getElementById('email').value.trim(), document.getElementById('password').value);
+      if (r && r.error) { say(r.error); go.disabled = false; go.textContent = 'Sign in'; }
+    });
+  </script>
+</body>
+</html>

@@ -2,12 +2,15 @@
   "name": "crowd-games",
   "version": "1.0.0",
   "description": "DJ-hosted crowd games: quiz, bingo and music bingo on phones via QR code",
-  "main": "server.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.js && node test/accounts.js"
+    "test": "node test/smoke.js && node test/accounts.js && node test/desktop.js",
+    "desktop": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
   },
-  "author": "",
+  "author": "Crowd QR Games",
   "license": "ISC",
   "dependencies": {
     "express": "^5.3.0",
@@ -20,6 +23,58 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
     "socket.io-client": "^4.8.4"
+  },
+  "productName": "Crowd QR Games",
+  "build": {
+    "appId": "com.crowdqrgames.desktop",
+    "productName": "Crowd QR Games",
+    "directories": {
+      "buildResources": "desktop/build",
+      "output": "dist"
+    },
+    "files": [
+      "*.js",
+      "*.json",
+      "public/**",
+      "desktop/*.js",
+      "desktop/*.html",
+      "!test/**",
+      "!tools/**",
+      "!dist/**",
+      "!render.yaml",
+      "!top.png",
+      "!package-lock.json"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.entertainment",
+      "artifactName": "Crowd-QR-Games-${version}-mac.${ext}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Crowd-QR-Games-${version}-windows-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": null
   }
 }

@@ -24,7 +24,7 @@ const io = new Server(server);
 // ---------- private mode ----------
 // Set HOST_PASSWORD to lock the host screen (and the question packs behind it)
 // so only you can start games. Guests joining with a room code are unaffected.
-const HOST_PASSWORD = process.env.HOST_PASSWORD || '';
+const HOST_PASSWORD = process.env.CROWD_DESKTOP === '1' ? '' : process.env.HOST_PASSWORD || ''; // the desktop app uses its own pass
 const HOST_TOKEN = HOST_PASSWORD ? crypto.createHmac('sha256', HOST_PASSWORD).update('crowd-qr-host').digest('hex') : '';
 const COOKIE = 'cg_host';
 
@@ -50,7 +50,8 @@ app.use((_req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex, nofollow'
 app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nDisallow: /\n'));
 
 // Host accounts (when DATABASE_URL or ACCOUNTS=memory is set) replace the shared password.
-const accounts = createAccounts({ baseUrl: (req) => baseUrl(req) });
+// The desktop app never uses website accounts locally: it has its own offline pass.
+const accounts = process.env.CROWD_DESKTOP === '1' ? { enabled: false } : createAccounts({ baseUrl: (req) => baseUrl(req) });
 if (accounts.enabled) accounts.install(app);
 
 const failedLogins = new Map(); // ip -> { n, until }
@@ -100,6 +101,38 @@ app.use(async (req, res, next) => {
     if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Login required' });
     res.redirect(a.reason === 'login' ? '/login?next=' + encodeURIComponent(req.originalUrl) : '/account');
   } catch (e) { next(e); }
+});
+
+// ---------- desktop app ----------
+// CROWD_DESKTOP=1 is set by the desktop app, which runs this server on the DJ's laptop.
+// Guests reach it over the local Wi-Fi, so the host screen and its API answer only on the
+// laptop itself (or the DJ phone remote link), and only with an in-date offline pass.
+const DESKTOP = process.env.CROWD_DESKTOP === '1';
+const licence = require('./licence');
+const isLoopback = (addr) => /^(127\.|::1$|::ffff:127\.)/.test(String(addr || ''));
+const desktopHostOk = (addr) => isLoopback(addr) && !!licence.currentValid();
+app.use((req, res, next) => {
+  if (!DESKTOP) return next();
+  const gated = req.path === '/host' || req.path === '/host.html' || req.path.startsWith('/api/');
+  if (!gated || desktopHostOk(req.socket.remoteAddress)) return next();
+  const r = req.path.startsWith('/host') && rooms.get(String(req.query.room || '').toUpperCase());
+  if (r && req.query.key && safeEqual(req.query.key, r.hostKey)) {
+    res.setHeader('Set-Cookie', `${REMOTE}=${r.code}.${r.hostKey}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`);
+    return next();
+  }
+  if (req.path.startsWith('/api/') && remoteRoom(req.headers.cookie)) return next();
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Host only' });
+  res.redirect('/');
+});
+
+// Desktop app: is there internet? (YouTube videos and playlist imports need it.)
+let netCheck = { at: 0, online: true };
+if (DESKTOP) app.get('/api/net', async (_req, res) => {
+  if (Date.now() - netCheck.at > 30_000) {
+    const online = await fetch('https://www.youtube.com/generate_204', { signal: AbortSignal.timeout(3000) }).then(() => true, () => false);
+    netCheck = { at: Date.now(), online };
+  }
+  res.json({ online: netCheck.online, lan: lanIp() !== 'localhost' });
 });
 
 app.use((req, res, next) => {
@@ -184,6 +217,9 @@ app.get('/api/playlist', async (req, res) => {
     res.json(out);
   } catch (e) {
     if (e.user) return res.status(400).json({ error: e.message });
+    if (DESKTOP && (e.cause?.code || e.name === 'TimeoutError')) {
+      return res.status(503).json({ error: "No internet: playlist links need it. You can still import a playlist file (CSV, M3U or TXT) or add your own music files." });
+    }
     console.warn('playlist import failed:', e.message);
     res.status(502).json({ error: "Couldn't read that playlist. Check it's set to public. You can also export it as a CSV (for example with Exportify for Spotify) and use Import a playlist file." });
   }
@@ -864,9 +900,11 @@ io.on('connection', (socket) => {
 
   socket.on('host:create', async (_d, cb) => {
     const cookie = socket.handshake.headers.cookie;
-    const allowed = accounts.enabled
-      ? accounts.access(await accounts.userFromCookie(cookie).catch(() => null)).ok
-      : isHostAuthed(cookie);
+    const allowed = DESKTOP
+      ? desktopHostOk(socket.handshake.address)
+      : accounts.enabled
+        ? accounts.access(await accounts.userFromCookie(cookie).catch(() => null)).ok
+        : isHostAuthed(cookie);
     if (!allowed) return ack(cb, { error: 'Login required' });
     room = createRoom();
     isHost = true;

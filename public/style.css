@@ -1,3 +1,5 @@
+/* Wedding headings font, served from here so it also works offline (SIL Open Font License, fonts/OFL.txt). */
+@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/playfair-display-latin-700-normal.woff2') format('woff2'); }
 :root {
   --bg: #0b0b14;
   --panel: #161627;
@@ -516,3 +518,6 @@ label.inline input { width: auto; }
 .result.good + .center { margin-top: 12px; }
 .kq-yt .bad { color: var(--bad); white-space: nowrap; }
 .pans:has(.optimg) { grid-template-columns: 1fr; }
+/* Desktop app: no internet / no Wi-Fi notice on the host screen. */
+.net-note { background: var(--panel2); color: var(--muted); border-radius: 12px; padding: 8px 14px; margin: 4px 0 10px; font-size: 13px; }
+.net-note.warn { color: var(--text); background: #5a1d1d; }

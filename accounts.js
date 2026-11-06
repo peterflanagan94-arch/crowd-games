@@ -12,10 +12,12 @@
 //   RESEND_API_KEY, EMAIL_FROM  for confirmation and password reset emails (else they're logged)
 //   ADMIN_EMAILS           comma separated emails that always have full access (no payment)
 //   TRIAL_DAYS             length of the free trial, default 7
-//   SIGNUPS=closed         pre-launch: only ADMIN_EMAILS can sign up, and the home page still says "coming soon"
+//   DESKTOP_LICENCE_KEY    Ed25519 private key (PEM) that signs the desktop app's offline passes
+//   SIGNUPS=closed        pre-launch: only ADMIN_EMAILS can sign up, and the home page still says "coming soon"
 const crypto = require('crypto');
 const express = require('express');
 const { memoryStore, pgStore } = require('./store');
+const licence = require('./licence');
 
 const DAY = 86_400_000;
 const PLANS = {
@@ -290,6 +292,40 @@ function createAccounts({ baseUrl }) {
       res.redirect(next);
     }));
     app.get('/logout', (_req, res) => { clearSession(res); res.redirect('/'); });
+
+    // ---- desktop app ----
+    // The app signs in here once with email and password, and gets an offline pass plus a
+    // renew token, so later it renews by itself whenever it's online. Changing the password
+    // cancels renew tokens. Needs DESKTOP_LICENCE_KEY (the Ed25519 private key).
+    const json = express.json({ limit: '4kb' });
+    const desktopPass = (res, u) => {
+      const a = access(u);
+      if (!a.ok) {
+        const why = { verify: 'Confirm your email first: check your inbox for the link.', expired: 'Your access has ended. Buy a pass or subscription online, then sign in again.' };
+        return res.status(403).json({ error: why[a.reason] || 'No access on this account.', reason: a.reason });
+      }
+      const until = a.sub ? +new Date(a.until) + 2 * DAY : a.until; // same card-retry grace as online
+      res.json({
+        licence: licence.issue(process.env.DESKTOP_LICENCE_KEY, { email: u.email, plan: a.plan, until }),
+        renew: sign({ p: 'desktop', u: u.id, v: u.session_ver || 0, e: Date.now() + 180 * DAY }),
+        plan: PLAN_LABEL[a.plan] || a.plan,
+      });
+    };
+    const desktopReady = (res) => (process.env.DESKTOP_LICENCE_KEY ? true : (res.status(503).json({ error: 'The desktop app is not set up on the server yet.' }), false));
+    app.post('/desktop/signin', json, wrap(async (req, res) => {
+      if (!desktopReady(res)) return;
+      if (limited(req, 'login', 10, 600_000)) return res.status(429).json({ error: 'Too many tries. Wait a few minutes and try again.' });
+      const u = await store.getUserByKey(emailKey(req.body?.email));
+      if (!u || !checkPassword(req.body?.password || '', u.pass_hash)) return res.status(401).json({ error: "That email and password don't match." });
+      desktopPass(res, u);
+    }));
+    app.post('/desktop/renew', json, wrap(async (req, res) => {
+      if (!desktopReady(res)) return;
+      const t = unsign(req.body?.renew);
+      const u = t?.p === 'desktop' && (await store.getUser(t.u));
+      if (!u || (u.session_ver || 0) !== t.v) return res.status(401).json({ error: 'Please sign in again.', reason: 'login' });
+      desktopPass(res, u);
+    }));
 
     app.get('/verify', wrap(async (req, res) => {
       const t = unsign(req.query.t);
