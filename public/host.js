@@ -981,3 +981,23 @@ function render() {
   renderStage();
   renderControls();
 }
+
+// Desktop app only (/api/net exists there): say when there's no internet or no Wi-Fi.
+(function netNote() {
+  const box = document.createElement('div');
+  box.className = 'net-note';
+  box.hidden = true;
+  document.querySelector('#controls .bar').after(box);
+  const check = () => fetch('/api/net').then((r) => (r.ok ? r.json() : null)).then((n) => {
+    if (!n) return;
+    box.textContent = !n.lan
+      ? "This laptop isn't on Wi-Fi, so phones can't join. Connect it to the venue Wi-Fi, a travel router or a phone hotspot."
+      : !n.online
+        ? 'Offline: every game works, but YouTube videos and playlist link imports need internet.'
+        : '';
+    box.classList.toggle('warn', !n.lan);
+    box.hidden = !box.textContent;
+    setTimeout(check, 30_000);
+  }, () => {});
+  check();
+})();

@@ -1,0 +1,74 @@
+# Builds the desktop app installers: a .dmg for Mac (Apple Silicon and Intel) and a
+# setup .exe for Windows.
+#
+# Run it from the Actions tab ("Desktop app" → Run workflow) to get the installers as
+# downloads on that run, or push a tag like desktop-v1.0.0 to also publish them as a
+# GitHub release.
+#
+# Signing (optional, add these repository secrets when you have them; without them the
+# installers are unsigned and Mac/Windows show a warning the first time they open):
+#   Mac:     CSC_LINK (Developer ID Application .p12, base64), CSC_KEY_PASSWORD,
+#            APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID  (for notarising)
+#   Windows: WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD
+name: Desktop app
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: --mac
+          - os: windows-latest
+            target: --win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        if: runner.os == 'macOS'
+      - name: Build installer
+        run: npx electron-builder ${{ matrix.target }} --publish never ${{ (runner.os == 'macOS' && secrets.APPLE_ID != '') && '-c.mac.notarize=true' || '' }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ runner.os }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" installers/* --repo "$GITHUB_REPOSITORY" --title "Crowd QR Games desktop ${GITHUB_REF_NAME#desktop-v}" --notes "Mac (.dmg) and Windows (setup .exe) installers for the Crowd QR Games desktop app."

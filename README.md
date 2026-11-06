@@ -63,6 +63,19 @@ Set `PUBLIC_URL` (for example `https://games.example.com`) if the QR code should
 
 Game state lives in memory. Restarting the server ends any running rooms, which is fine for a night's gigs. Rooms expire after 12 hours idle.
 
+## Desktop app (offline play)
+
+The same games as the website, as a Mac and Windows app for gigs with no internet. The app runs the game server on the DJ's laptop; guests scan the QR code and join over the local Wi-Fi.
+
+- **Sign in once online** with a Crowd QR Games account. The app gets an offline pass that lasts until the account's access ends, and at most 30 days, and renews itself whenever the laptop is online. Signing out, changing the password or the access ending stops renewal.
+- **Wi-Fi:** the laptop and guests' phones must be on the same network. Venue Wi-Fi often keeps devices apart, so a small travel router is the most reliable setup; a phone hotspot works for small groups (most allow about 10 devices). The first time the app opens, allow it through the Mac or Windows firewall so phones can connect.
+- **Needs internet:** YouTube videos (music and karaoke) and Spotify/Apple Music playlist links. Every game, your own music files and playlist files work offline. The DJ controls show a note when there's no internet or no Wi-Fi.
+- **Only the laptop can host:** guests on the same Wi-Fi can't open the host screen; the DJ phone remote link still works.
+
+Run it from source with `npm install` then `npm run desktop`. Installers are built by the **Desktop app** GitHub Action: run it from the Actions tab, or push a `desktop-v1.2.3` tag to publish a release. Without signing certificates the installers are unsigned (see the workflow file for the secrets to add).
+
+The website needs `DESKTOP_LICENCE_KEY` set to the Ed25519 private key (PEM) that matches the public key in `licence.js`; the app signs in at `/desktop/signin`. Keep that key secret: anyone with it could make passes. The app talks to `https://crowd-qr-games.onrender.com` unless built with `CROWD_QR_URL` set.
+
 ## Accounts and payments
 
 Hosts sign up at `/signup` and confirm their email, which starts a one-off 7-day free trial (one per email address: case, `+tags` and Gmail dots count as the same address). After that, `/account` offers the £9.99 event pass (24 hours), £12.99 a month or £129 a year through Stripe Checkout. Guests never need an account. The DJ phone remote link still works without logging in, for that room only.
@@ -73,6 +86,7 @@ Accounts switch on when `DATABASE_URL` is set (Render Postgres). Without it the 
 | --- | --- |
 | `DATABASE_URL` | Any Postgres: Render Postgres (internal URL) or Supabase (its Session pooler connection string). Tables are created on start in their own `crowdqr` schema, so a database shared with another app is safe. |
 | `DB_SCHEMA` | Optional, default `crowdqr`. |
+| `DESKTOP_LICENCE_KEY` | Ed25519 private key (PEM, `\n` escapes are fine) that signs the desktop app's offline passes. |
 | `SESSION_SECRET` | Long random string that signs logins and email links. Changing it logs everyone out. |
 | `STRIPE_SECRET_KEY` | `sk_test_...` for testing, `sk_live_...` for real payments. Without it the plan buttons say "coming soon". |
 | `STRIPE_WEBHOOK_SECRET` | From a Stripe webhook to `https://<your domain>/billing/webhook` with the events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated` and `customer.subscription.deleted`. |
