@@ -86,7 +86,7 @@ Accounts switch on when `DATABASE_URL` is set (Render Postgres). Without it the 
 | --- | --- |
 | `DATABASE_URL` | Any Postgres: Render Postgres (internal URL) or Supabase (its Session pooler connection string). Tables are created on start in their own `crowdqr` schema, so a database shared with another app is safe. |
 | `DB_SCHEMA` | Optional, default `crowdqr`. |
-| `DESKTOP_LICENCE_KEY` | Ed25519 private key (PEM, `\\n` escapes are fine) that signs the desktop app's offline passes. |
+| `DESKTOP_LICENCE_KEY` | Ed25519 private key (PEM, `\n` escapes are fine) that signs the desktop app's offline passes. |
 | `SESSION_SECRET` | Long random string that signs logins and email links. Changing it logs everyone out. |
 | `STRIPE_SECRET_KEY` | `sk_test_...` for testing, `sk_live_...` for real payments. Without it the plan buttons say "coming soon". |
 | `STRIPE_WEBHOOK_SECRET` | From a Stripe webhook to `https://<your domain>/billing/webhook` with the events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated` and `customer.subscription.deleted`. |
