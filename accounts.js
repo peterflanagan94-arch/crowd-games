@@ -7,7 +7,7 @@
 //   SESSION_SECRET         long random string that signs login cookies and email links
 //   STRIPE_SECRET_KEY      sk_test_... while testing, sk_live_... to take real money
 //   STRIPE_WEBHOOK_SECRET  whsec_... from the Stripe webhook pointing at /billing/webhook
-//   STRIPE_PRICE_PASS / STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY  optional Stripe price ids;
+//   STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY  optional Stripe price ids;
 //                          without them the prices below are sent to Stripe directly
 //   RESEND_API_KEY, EMAIL_FROM  for confirmation and password reset emails (else they're logged)
 //   ADMIN_EMAILS           comma separated emails that always have full access (no payment)
@@ -23,12 +23,12 @@ const licence = require('./licence');
 
 const DAY = 86_400_000;
 const PLANS = {
-  pass: { name: 'Event pass (24 hours)', amount: 999, mode: 'payment', price: process.env.STRIPE_PRICE_PASS },
-  monthly: { name: 'Monthly', amount: 1299, mode: 'subscription', interval: 'month', price: process.env.STRIPE_PRICE_MONTHLY },
-  yearly: { name: 'Yearly', amount: 12900, mode: 'subscription', interval: 'year', price: process.env.STRIPE_PRICE_YEARLY },
+  monthly: { name: 'Monthly', amount: 899, mode: 'subscription', interval: 'month', price: process.env.STRIPE_PRICE_MONTHLY },
+  yearly: { name: 'Yearly', amount: 8999, mode: 'subscription', interval: 'year', price: process.env.STRIPE_PRICE_YEARLY },
 };
 const PLAN_LABEL = { pass: 'Event pass', monthly: 'Monthly', yearly: 'Yearly', trial: 'Free trial', complimentary: 'Full access' };
 const LIVE_SUB = ['active', 'trialing', 'past_due'];
+const STRIPE_APP_TAG = 'crowd-qr-games';
 
 // One trial per email: case, "+anything" tags and Gmail's dots don't make a new address.
 function emailKey(raw) {
@@ -194,24 +194,24 @@ function createAccounts({ baseUrl }) {
     });
   }
   async function applyCheckout(session) {
-    if (session.payment_status !== 'paid') return;
+    if (session.payment_status !== 'paid' || !ours(session)) return;
     const userId = Number(session.metadata?.user_id || session.client_reference_id);
     const plan = session.metadata?.plan;
     const u = userId && await store.getUser(userId);
     if (!u || !PLANS[plan]) return console.warn('Stripe checkout with no matching account', session.id);
     if (session.customer && session.customer !== u.stripe_customer_id) await store.updateUser(u.id, { stripe_customer_id: session.customer });
-    if (plan === 'pass') {
-      if (!(await store.recordPayment(session.id, u.id, plan))) return; // already counted
-      const from = Math.max(Date.now(), u.pass_until ? +new Date(u.pass_until) : 0);
-      await store.updateUser(u.id, { pass_until: new Date(from + DAY) });
-    } else if (session.subscription) {
+    if (session.subscription) {
       await store.recordPayment(session.id, u.id, plan);
       const sub = typeof session.subscription === 'string' ? await stripe.subscriptions.retrieve(session.subscription) : session.subscription;
       await syncSubscription(sub, u.id);
     }
   }
+  // The Stripe account may also sell other products (Studio on Screen), so only act on
+  // checkouts and subscriptions this app started.
+  const ours = (o) => o?.metadata?.app === STRIPE_APP_TAG;
   async function handleStripeEvent(event) {
     const o = event.data.object;
+    if (!ours(o)) return;
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') await applyCheckout(o);
     else if (event.type.startsWith('customer.subscription.')) await syncSubscription(o, Number(o.metadata?.user_id) || 0);
   }
@@ -412,9 +412,8 @@ function createAccounts({ baseUrl }) {
       const plans = !choose ? '' : !stripe ? '<p class="muted small">Payments are coming soon.</p>' : `
         <div class="acct-plans">
           ${a.ok ? '<p class="muted small">Buy now or when your access runs out:</p>' : ''}
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="pass" /><button class="big-btn">🎟️ Event pass · £9.99 for 24h</button></form>
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="monthly" /><button class="primary big-btn">⭐ Monthly · £12.99 a month</button></form>
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="yearly" /><button class="big-btn">📅 Yearly · £129 a year</button></form>
+          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="monthly" /><button class="primary big-btn">⭐ Monthly · £8.99 a month</button></form>
+          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="yearly" /><button class="big-btn">📅 Yearly · £89.99 a year</button></form>
         </div>`;
       const manage = stripe && u.stripe_customer_id && u.sub_id
         ? '<form method="post" action="/billing/portal"><button class="big-btn">Manage subscription or card</button></form>' : '';
@@ -436,7 +435,7 @@ function createAccounts({ baseUrl }) {
           ...(plan.interval ? { recurring: { interval: plan.interval } } : {}),
         },
       };
-      const meta = { user_id: String(u.id), plan: req.body.plan };
+      const meta = { app: STRIPE_APP_TAG, user_id: String(u.id), plan: req.body.plan };
       const session = await stripe.checkout.sessions.create({
         mode: plan.mode,
         line_items: [item],
