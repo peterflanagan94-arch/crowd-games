@@ -149,6 +149,7 @@ server.listen(0, async () => {
   // Pre-launch: only admin emails can sign up.
   process.env.SIGNUPS = 'closed';
   process.env.ADMIN_EMAILS = 'boss@example.com,chief@example.com';
+  process.env.TESTER_EMAILS = 'tester@example.com';
   delete require.cache[require.resolve('../accounts')];
   const closed = require('../accounts').createAccounts({ baseUrl: () => url });
   const express = require('express');
@@ -159,6 +160,10 @@ server.listen(0, async () => {
   const post2 = (email) => fetch(url2 + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email, password: 'longenough' }).toString() });
   assert.equal((await post2('someone@example.com')).status, 403);
   assert.equal((await post2('chief@example.com')).status, 302);
+  const tester = await post2('tester@example.com');
+  assert.equal(tester.status, 302, 'tester emails can sign up before launch');
+  const tcookie = tester.headers.get('set-cookie').split(';')[0];
+  assert.match(await (await fetch(url2 + '/account', { headers: { cookie: tcookie } })).text(), /Check your email/, 'testers are normal customers');
   assert.equal((await (await fetch(url2 + '/auth/status')).json()).accounts, false, 'home page keeps "coming soon"');
   srv2.close();
 
