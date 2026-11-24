@@ -2,7 +2,7 @@
 // in-memory store for local testing (ACCOUNTS=memory), which forgets everything on restart.
 
 const FIELDS = ['email', 'email_key', 'pass_hash', 'verified_at', 'trial_ends_at', 'pass_until',
-  'stripe_customer_id', 'sub_id', 'sub_status', 'sub_plan', 'sub_period_end', 'session_ver', 'comp'];
+  'stripe_customer_id', 'sub_id', 'sub_status', 'sub_plan', 'sub_period_end', 'sub_cancel_at_end', 'session_ver', 'comp'];
 
 function memoryStore() {
   const users = new Map();
@@ -74,6 +74,7 @@ function pgStore(url) {
           session_ver INTEGER NOT NULL DEFAULT 0,
           comp BOOLEAN
         );
+        ALTER TABLE ${S}.users ADD COLUMN IF NOT EXISTS sub_cancel_at_end BOOLEAN;
         CREATE INDEX IF NOT EXISTS users_customer ON ${S}.users (stripe_customer_id);
         CREATE TABLE IF NOT EXISTS ${S}.payments (
           session_id TEXT PRIMARY KEY,
