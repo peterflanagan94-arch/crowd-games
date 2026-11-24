@@ -131,10 +131,42 @@
         </div>
       </div>
     </section>
+
+    <section class="section" id="request">
+      <div class="join-card request-card">
+        <h2>💡 Request a game</h2>
+        <p class="muted">Got an idea for a game your crowd would love? Tell us and we might build it next. Leave your email if you’d like a reply.</p>
+        <form method="post" action="/request-game" id="requestForm" class="request-form">
+          <textarea name="idea" rows="3" maxlength="2000" required placeholder="Describe the game: how it works, what guests do on their phones…" aria-label="Your game idea"></textarea>
+          <div class="request-row">
+            <input type="email" name="email" placeholder="Your email (optional)" autocomplete="email" aria-label="Your email" />
+            <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true" />
+            <button class="primary">Send idea</button>
+          </div>
+          <p class="request-msg" id="requestMsg" role="status" hidden></p>
+        </form>
+      </div>
+    </section>
   </main>
 
   <footer class="hfoot muted">Crowd QR Games · Made for DJs · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></footer>
   <script>
+    // Request a game: send without leaving the page.
+    (() => {
+      const f = document.getElementById('requestForm'), msg = document.getElementById('requestMsg');
+      const show = (t, ok) => { msg.hidden = false; msg.textContent = t; msg.className = 'request-msg ' + (ok ? 'ok' : 'err'); };
+      if (location.search.includes('requested=1')) show('Thanks! Your idea has been sent.', true);
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const b = f.querySelector('button'); b.disabled = true;
+        try {
+          const r = await fetch('/request-game', { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(new FormData(f)) });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok) { f.reset(); show('Thanks! Your idea has been sent.', true); } else show(j.error || 'Something went wrong. Try again.', false);
+        } catch { show('Something went wrong. Try again.', false); }
+        b.disabled = false;
+      });
+    })();
     // Once accounts are switched on, the plan buttons lead to sign-up (or the account page).
     fetch('/auth/status').then((r) => r.json()).then((s) => {
       if (!s.accounts) return;
