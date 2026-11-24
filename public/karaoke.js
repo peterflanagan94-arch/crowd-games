@@ -74,7 +74,9 @@
     </div>`;
   };
 
-  // ---------- lyrics video (main host screen only; the phone remote just sends commands) ----------
+  // ---------- lyrics video ----------
+  // Plays on the big screen: the audience window when one is open, otherwise the main host
+  // screen. The phone remote just sends commands.
   let core = null, playingId = null;
   const box = $('#kScreen');
   function place() {
@@ -89,13 +91,16 @@
     if (e.type === 'ended') { stop(); send('host:karaoke', { act: 'video', on: false }); }
     if (e.type === 'error') {
       stop(); send('host:karaoke', { act: 'video', on: false });
-      $('#err').textContent = "YouTube won't play that video here (the owner may have blocked embedding). Try another link.";
+      const text = "YouTube won't play that video here (the owner may have blocked embedding). Try another link.";
+      $('#err').textContent = text;
+      if (isScreen) secondScreen.post({ type: 'err', text });
     }
   }
   function sync() {
     const g = state?.game;
     if (isRemote) return;
-    const want = g?.type === 'karaoke' && g.video && g.current?.yt ? g.current : null;
+    const here = isScreen || !secondScreen.alive;
+    const want = here && g?.type === 'karaoke' && g.video && g.current?.yt ? g.current : null;
     if (!want) return stop();
     const nextUp = g.queue[0];
     $('#kCap').innerHTML = `🎤 <b>${esc(want.singer)}</b> · ${esc(want.song)}${nextUp ? ` <span class="muted">· Next up: ${esc(nextUp.singer)}</span>` : ''}`;
@@ -108,6 +113,7 @@
     core.play({ id: want.yt, mode: 'full' });
   }
   socket.on('state', () => setTimeout(sync, 0));
+  secondScreen.on(() => setTimeout(sync, 0));
   new ResizeObserver(() => !box.hidden && place()).observe($('#stage'));
   window.addEventListener('resize', () => !box.hidden && place());
 })();

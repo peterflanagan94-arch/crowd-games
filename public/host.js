@@ -25,6 +25,10 @@ function save(v) { try { localStorage.setItem('cg-host', JSON.stringify(v)); } c
 const qs = new URLSearchParams(location.search);
 const isRemote = qs.get('remote') === '1';
 if (isRemote) document.body.classList.add('remote');
+// The audience window (?screen=1): the big screen on its own, for a projector or TV,
+// while the DJ keeps the controls on the laptop. Opened from the main host screen.
+const isScreen = !isRemote && qs.get('screen') === '1';
+if (isScreen) document.body.classList.add('screen');
 
 socket.on('connect', () => {
   if (isRemote) {
@@ -34,16 +38,22 @@ socket.on('connect', () => {
     });
   }
   const s = saved();
+  if (isScreen) {
+    return s ? socket.emit('host:resume', s, (r) => (r.error ? screenLost() : onRoom(r))) : screenLost();
+  }
   const fresh = qs.has('new');
   if (s && !fresh) {
     socket.emit('host:resume', s, (r) => (r.error ? create() : onRoom(r)));
   } else create();
 });
+function screenLost() {
+  document.body.innerHTML = '<div class="landing"><h2>Open the host screen first, then press 📺 Second screen in the DJ controls.</h2></div>';
+}
 function create() { socket.emit('host:create', {}, onRoom); }
 let remoteUrl = '';
 async function onRoom({ code, hostKey, error }) {
   if (error === 'Login required') return location.replace('/login?next=/host');
-  if (!isRemote) {
+  if (!isRemote && !isScreen) {
     save({ code, hostKey });
     if (location.search) history.replaceState(null, '', '/host');
   }
@@ -82,6 +92,48 @@ $('#remoteBtn').onclick = () => {
   document.body.appendChild(m);
 };
 if (isRemote) $('#remoteBtn').remove();
+
+// ---------- second screen (audience window) ----------
+// The main host screen and its audience window find each other over a BroadcastChannel
+// (same browser). While the audience window is open, videos play there instead of here.
+const secondScreen = { alive: false, win: null, listeners: [], ch: 'BroadcastChannel' in window ? new BroadcastChannel('cg-screen') : null,
+  on(fn) { this.listeners.push(fn); },
+  post(m) { this.ch?.postMessage(m); },
+  set(v) { if (v === this.alive) return; this.alive = v; this.listeners.forEach((f) => f(v)); },
+};
+window.secondScreen = secondScreen;
+if (isScreen) {
+  secondScreen.ch?.addEventListener('message', ({ data: m }) => { if (m.cmd === 'ping') secondScreen.post({ type: 'hello' }); });
+  secondScreen.post({ type: 'hello' });
+  addEventListener('beforeunload', () => secondScreen.post({ type: 'bye' }));
+  document.title = 'Crowd QR Games · Big screen';
+  const hint = document.createElement('div');
+  hint.className = 'screen-hint';
+  hint.innerHTML = '<b>📺 Big screen</b><span>Drag this window onto the projector or TV, then click anywhere to go full screen.</span>';
+  document.body.appendChild(hint);
+  addEventListener('click', () => { hint.remove(); document.documentElement.requestFullscreen?.().catch(() => {}); });
+} else if (!isRemote) {
+  const btn = document.createElement('button');
+  btn.id = 'screenBtn';
+  btn.title = 'Open the big screen in its own window for a projector or TV, and keep these controls on your laptop';
+  const label = () => { btn.textContent = secondScreen.alive ? '📺 Second screen ✓' : '📺 Second screen'; btn.classList.toggle('on', secondScreen.alive); };
+  label();
+  btn.onclick = () => {
+    secondScreen.win = window.open('/host?screen=1', 'cg-screen', 'width=1280,height=720');
+    if (!secondScreen.win) $('#err').textContent = 'Your browser blocked the second screen window. Allow pop-ups for this site and try again.';
+    else secondScreen.win.focus();
+  };
+  $('#remoteBtn').before(btn);
+  secondScreen.ch?.addEventListener('message', ({ data: m }) => {
+    if (m.type === 'hello') secondScreen.set(true);
+    if (m.type === 'bye') secondScreen.set(false);
+    if (m.type === 'err') $('#err').textContent = m.text;
+  });
+  secondScreen.post({ cmd: 'ping' });
+  // A window can close without saying bye (crash, killed tab), so check now and then.
+  setInterval(() => { if (secondScreen.win?.closed) secondScreen.set(false); }, 2000);
+  secondScreen.on(() => { label(); render(); });
+}
 
 $('#tabs').onclick = (e) => {
   const b = e.target.closest('button');
@@ -418,6 +470,7 @@ $('#plist').onclick = (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, textarea, select')) return;
+  if (isScreen) { if (e.key === 'f') document.documentElement.requestFullscreen?.(); return; }
   if (e.code === 'Space' || e.code === 'ArrowRight') {
     e.preventDefault();
     primaryAction()?.();
@@ -964,16 +1017,16 @@ function render() {
     if (!eventFormFilled) {
       eventFormFilled = true;
       const fresh = !state.event.title && !state.event.a && state.event.type === 'party';
-      const ev = fresh && !isRemote ? store.get('cg-event') || state.event : state.event;
+      const ev = fresh && !isRemote && !isScreen ? store.get('cg-event') || state.event : state.event;
       // Carry the DJ's last event settings into a fresh room.
-      if (fresh && !isRemote && store.get('cg-event')) send('host:event', ev);
+      if (fresh && !isRemote && !isScreen && store.get('cg-event')) send('host:event', ev);
       $('#evType').value = ev.type; $('#evTitle').value = ev.title; $('#evA').value = ev.a; $('#evB').value = ev.b;
       accentVal = ev.accent || '';
       applyTheme(ev);
       $('#evAccent').value = accentVal || getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#ff3d9a';
       const logo = store.get('cg-logo');
-      if (!state.event.logo && logo && !isRemote) send('host:logo', { data: logo });
-      showLogoBox(state.event.logo || (!isRemote && logo) || null);
+      if (!state.event.logo && logo && !isRemote && !isScreen) send('host:logo', { data: logo });
+      showLogoBox(state.event.logo || (!isRemote && !isScreen && logo) || null);
     }
   }
   if (state) $('#chTonight').textContent = state.pickedTonight ? `(${state.pickedTonight} picked so far tonight)` : '';

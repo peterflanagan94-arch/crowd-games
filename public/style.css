@@ -178,6 +178,12 @@ body[data-theme='elegant'] .slot.landed { color: #1d1408; }
 body.remote .stage, body.remote .side { display: none; }
 body.remote .host { grid-template-columns: 1fr; }
 body.remote .controls { max-height: none; flex: 1; }
+/* audience window: the big screen on its own, for a projector or TV */
+body.screen .controls, body.screen .kick { display: none; }
+body.screen { cursor: none; }
+.screen-hint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; background: var(--panel); border: 2px solid var(--accent); border-radius: 14px; padding: 12px 18px; display: grid; gap: 4px; text-align: center; max-width: min(560px, 90vw); box-shadow: 0 10px 40px #000a; cursor: default; }
+body.screen:has(.screen-hint) { cursor: default; }
+#screenBtn.on { border-color: var(--accent); color: var(--accent); }
 .modal { position: fixed; inset: 0; background: #000c; display: grid; place-items: center; z-index: 50; }
 .modal > div { background: var(--panel); padding: 24px; border-radius: 20px; max-width: 360px; text-align: center; display: grid; gap: 12px; }
 .modal .qr { background: #fff; padding: 12px; border-radius: 12px; }

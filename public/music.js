@@ -298,21 +298,26 @@
   // YouTube player: in a pop-out window on the DJ's screen (crowd never sees titles) or on the big screen.
   const audience = () => (state?.game?.type === 'bingo' && state.game.audience) || $('#audience').value;
   // Video views put the player on the big screen; otherwise it plays in the pop-out window on the DJ's screen.
-  const ytWhere = () => (['video', 'both'].includes(audience()) ? 'screen' : 'popout');
+  // 'screen2' is the big screen in its own audience window (see secondScreen in host.js).
+  const ytWhere = () => (['video', 'both'].includes(audience()) ? (!isScreen && secondScreen.alive ? 'screen2' : 'screen') : 'popout');
   let lastWhere = null;
+  // Move a playing video to its new place, carrying on from the same point.
+  function relocate() {
+    const where = ytWhere();
+    if (playing?.kind === 'yt' && lastWhere && where !== lastWhere) {
+      if (lastWhere === 'screen') { screenCore?.stop(); showScreen(false); }
+      else if (lastWhere === 'screen2') secondScreen.post({ cmd: 'yt', sub: 'stop' });
+      else ch?.postMessage({ cmd: 'stop' });
+      if (where === 'popout' && !popupAlive) { $('#err').textContent = 'Open the player window to keep the music going.'; playing = null; renderNow(); return; }
+      yt('play', { id: playing.yt, mode: 'resume', at: ytTime.cur || 0, end: playing.end, label: playing.label });
+    }
+    lastWhere = where; renderCap(); renderNow();
+  }
   window.musicAudienceChanged = (view) => {
     $('#audience').value = view; saveSettings();
-    // Move a playing video to its new place, carrying on from the same point.
-    setTimeout(() => {
-      const where = ytWhere();
-      if (playing?.kind === 'yt' && lastWhere && where !== lastWhere) {
-        if (lastWhere === 'screen') { screenCore?.stop(); showScreen(false); } else ch?.postMessage({ cmd: 'stop' });
-        if (where === 'popout' && !popupAlive) { $('#err').textContent = 'Open the player window to keep the music going.'; playing = null; renderNow(); return; }
-        yt('play', { id: playing.yt, mode: 'resume', at: ytTime.cur || 0, end: playing.end, label: playing.label });
-      }
-      lastWhere = where; renderCap(); renderNow();
-    }, 150);
+    setTimeout(relocate, 150);
   };
+  if (!isScreen && !isRemote) secondScreen.on(() => setTimeout(relocate, 150));
   function renderCap() {
     const cap = $('#ytScreenCap'); const g = state?.game; if (!cap || !g || g.type !== 'bingo') return;
     const both = g.audience === 'both';
@@ -329,6 +334,7 @@
   }
   function yt(cmd, extra = {}) {
     if (cmd === 'play') lastWhere = ytWhere();
+    if (ytWhere() === 'screen2') return secondScreen.post({ cmd: 'yt', sub: cmd, extra });
     if (ytWhere() === 'screen') {
       if (!screenCore) screenCore = new YTCore($('#ytScreenPlayer'), onYt);
       if (cmd === 'play') { showScreen(true); renderCap(); screenCore.play(extra); }
@@ -340,6 +346,24 @@
       ch?.postMessage({ cmd, ...extra });
       if (cmd === 'stop' && screenCore) { screenCore.stop(); showScreen(false); }
     }
+  }
+  // In the audience window: play the video the main host screen sends over, and report back.
+  if (isScreen) {
+    secondScreen.ch?.addEventListener('message', ({ data: m }) => {
+      if (m.cmd !== 'yt') return;
+      const { sub, extra = {} } = m;
+      screenCore ||= new YTCore($('#ytScreenPlayer'), (e) => {
+        if (e.type === 'ended' || e.type === 'error') showScreen(false);
+        secondScreen.post({ type: 'yt', e });
+      });
+      if (sub === 'play') { showScreen(true); renderCap(); screenCore.play(extra); }
+      if (sub === 'pause') screenCore.pause();
+      if (sub === 'resume') screenCore.resume();
+      if (sub === 'stop') { screenCore.stop(); showScreen(false); }
+      if (sub === 'volume') screenCore.volume(extra.v);
+    });
+  } else if (!isRemote) {
+    secondScreen.ch?.addEventListener('message', ({ data: m }) => { if (m.type === 'yt' && ytWhere() === 'screen2') onYt(m.e); });
   }
   new ResizeObserver(() => { if (!$('#ytScreen').hidden) showScreen(true); }).observe($('#stage'));
   function showScreen(on) {
@@ -464,6 +488,7 @@
 
   socket.on('state', () => {
     const g = game();
+    if (isScreen) { if (!g) { screenCore?.stop(); showScreen(false); } else if (!$('#ytScreen').hidden) renderCap(); return; } // the main host screen runs the music
     if (!g) {
       if (playing) { if (playing.kind === 'yt') yt('stop'); else fadeOut(); playing = null; }
       lastCalled = null; seen = false; winnersSeen = 0; clearTimeout(autoTimer);
