@@ -7,7 +7,7 @@
 // renews by itself whenever the laptop is online.
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog, screen } = require('electron');
 
 const ONLINE = (process.env.CROWD_QR_URL || 'https://crowd-qr-games.onrender.com').replace(/\/$/, '');
 const PORTS = [3000, 3001, 3002, 3003, 8080, 0]; // 3000 first so guests' links stay the same between gigs
@@ -143,6 +143,15 @@ function createWindow() {
   // Pop-outs from the host screen (the DJ's private YouTube player, the phone remote page)
   // open as app windows; anything else opens in the normal browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // The big screen window goes straight onto a projector or TV when one is plugged in.
+    if (url.startsWith(`http://localhost:${port}/host?screen=1`)) {
+      const here = screen.getDisplayMatching(win.getBounds());
+      const other = screen.getAllDisplays().find((d) => d.id !== here.id);
+      const b = (other || here).workArea;
+      return { action: 'allow', overrideBrowserWindowOptions: {
+        x: b.x + 40, y: b.y + 40, width: Math.min(1280, b.width - 80), height: Math.min(720, b.height - 80),
+        fullscreen: !!other, backgroundColor: '#0b0b14', autoHideMenuBar: true, title: 'Crowd QR Games · Big screen' } };
+    }
     if (url.startsWith(`http://localhost:${port}/`) || url === 'about:blank') {
       return { action: 'allow', overrideBrowserWindowOptions: { width: 900, height: 560, backgroundColor: '#000', autoHideMenuBar: true } };
     }

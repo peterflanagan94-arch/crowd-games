@@ -14,6 +14,32 @@ const ytId = (s) => {
   return (/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/.exec(t) || [])[1] || null;
 };
 const MAX_QUEUE = 200;
+const ZOOM_CHANNEL = 'UCrk8mp-ugqtAbjif6JARjlw'; // Zoom Karaoke Official: allows its videos to play on other sites
+const ZOOM_NAME = 'Zoom Karaoke Official';
+
+// DJ search, through the YouTube Data API (needs YOUTUBE_API_KEY). Zoom Karaoke's channel first;
+// scope 'all' searches every channel. Only videos that can play on other sites come back.
+// Each search costs 100 of the key's 10,000 free daily units, so results are cached.
+const searchCache = new Map();
+async function searchVideos(q, scope) {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) return { error: 'nokey' };
+  q = clean(q, 100);
+  if (!q) return { results: [] };
+  const ck = scope + '|' + q.toLowerCase();
+  if (searchCache.has(ck)) return searchCache.get(ck);
+  const p = new URLSearchParams({ part: 'snippet', type: 'video', videoEmbeddable: 'true', maxResults: '8', key,
+    q: scope === 'all' ? q + ' karaoke' : q, ...(scope === 'all' ? {} : { channelId: ZOOM_CHANNEL }) });
+  const r = await fetch('https://www.googleapis.com/youtube/v3/search?' + p, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return { error: r.status === 403 ? 'quota' : 'failed' };
+  const j = await r.json();
+  const unesc = (s) => String(s || '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  const out = { results: (j.items || []).map((it) => ({ id: it.id?.videoId, title: unesc(it.snippet?.title), by: unesc(it.snippet?.channelTitle),
+    thumb: it.snippet?.thumbnails?.default?.url || '' })).filter((x) => x.id) };
+  if (searchCache.size > 500) searchCache.clear();
+  searchCache.set(ck, out);
+  return out;
+}
 
 function startKaraoke(room, { title, perGuest, open } = {}) {
   room.game = {
@@ -26,7 +52,9 @@ function startKaraoke(room, { title, perGuest, open } = {}) {
 
 function entry(singer, song, pid) {
   const s = clean(song, 100);
-  return { id: crypto.randomBytes(5).toString('hex'), pid, singer: clean(singer, 60), song: s, yt: YT_BY_KEY.get(key(s)) || null, added: Date.now() };
+  const yt = YT_BY_KEY.get(key(s)) || null;
+  return { id: crypto.randomBytes(5).toString('hex'), pid, singer: clean(singer, 60), song: s, yt,
+    ...(yt && { ytStatus: 'ok', ytBy: ZOOM_NAME }), added: Date.now() };
 }
 
 function signUp(room, player, { song, with: partner } = {}) {
@@ -67,7 +95,7 @@ function hostAction(room, act, d = {}) {
     case 'add': {
       if (!clean(d.singer, 60) || !clean(d.song, 100)) return 'Add a singer and a song.';
       const e = entry(d.singer, d.song, null);
-      if (ytId(d.link)) e.yt = ytId(d.link);
+      if (ytId(d.link)) Object.assign(e, { yt: ytId(d.link), ytStatus: null, ytBy: '' });
       g.queue.push(e);
       return null;
     }
@@ -87,7 +115,7 @@ function hostAction(room, act, d = {}) {
       const e = find(); if (!e) return 'That singer has gone.';
       if (d.link && !ytId(d.link)) return "That doesn't look like a YouTube link.";
       e.yt = ytId(d.link);
-      e.ytStatus = null;
+      e.ytStatus = null; e.ytBy = '';
       return null;
     }
     case 'video': g.video = !!d.on && !!g.current?.yt; return null;
@@ -99,22 +127,24 @@ function hostAction(room, act, d = {}) {
 
 // Ask YouTube (oEmbed) whether each newly linked video can play inside another site.
 // Many karaoke channels switch embedding off; better to know before the singer is up.
-const linkCache = new Map(); // yt id -> 'ok' | 'blocked' | 'missing'
+const linkCache = new Map(); // yt id -> { st: 'ok' | 'blocked' | 'missing', by: channel name }
 async function checkLinks(room, done) {
   const g = room.game;
   if (g?.type !== 'karaoke') return;
   const todo = [g.current, ...g.queue].filter((e) => e?.yt && !e.ytStatus);
   if (!todo.length) return;
   for (const e of todo) {
-    let st = linkCache.get(e.yt);
-    if (!st) {
+    let c = linkCache.get(e.yt);
+    if (!c) {
       try {
         const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/watch?v=' + e.yt)}`, { signal: AbortSignal.timeout(6000) });
-        st = r.ok ? 'ok' : r.status === 401 || r.status === 403 ? 'blocked' : r.status === 404 || r.status === 400 ? 'missing' : null;
-      } catch { st = null; }
-      if (st) linkCache.set(e.yt, st);
+        const st = r.ok ? 'ok' : r.status === 401 || r.status === 403 ? 'blocked' : r.status === 404 || r.status === 400 ? 'missing' : null;
+        const by = r.ok ? String((await r.json().catch(() => ({}))).author_name || '').slice(0, 60) : '';
+        if (st) linkCache.set(e.yt, (c = { st, by }));
+      } catch {}
     }
-    e.ytStatus = st || 'unknown';
+    e.ytStatus = c?.st || 'unknown';
+    e.ytBy = c?.by || '';
   }
   done();
 }
@@ -124,8 +154,8 @@ const pub = (e) => e && { id: e.id, singer: e.singer, song: e.song };
 function hostView(g) {
   return {
     type: 'karaoke', title: g.title, open: g.open, perGuest: g.perGuest, video: g.video, autoVideo: g.autoVideo !== false,
-    current: g.current && { ...pub(g.current), yt: g.current.yt, ytStatus: g.current.ytStatus, started: g.current.started },
-    queue: g.queue.map((e) => ({ ...pub(e), yt: e.yt, ytStatus: e.ytStatus, guest: !!e.pid })),
+    current: g.current && { ...pub(g.current), yt: g.current.yt, ytStatus: g.current.ytStatus, ytBy: g.current.ytBy, started: g.current.started },
+    queue: g.queue.map((e) => ({ ...pub(e), yt: e.yt, ytStatus: e.ytStatus, ytBy: e.ytBy, guest: !!e.pid })),
     played: g.played.length, now: Date.now(),
   };
 }
@@ -141,4 +171,4 @@ function playerView(g, p) {
   };
 }
 
-module.exports = { checkLinks, startKaraoke, signUp, cancel, hostAction, hostView, playerView, KARAOKE_LISTS, ytId };
+module.exports = { searchVideos, checkLinks, startKaraoke, signUp, cancel, hostAction, hostView, playerView, KARAOKE_LISTS, ytId };

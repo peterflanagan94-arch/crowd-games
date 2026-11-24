@@ -209,6 +209,11 @@ app.get('/api/emoji-pack', (req, res) => {
 });
 app.get('/api/challenges', (_req, res) => res.json(CHALLENGES));
 app.get('/api/music-library', (_req, res) => res.json({ playlists: PLAYLISTS, yt: YT }));
+// DJ's karaoke video search (host only, like the rest of /api).
+app.get('/api/karaoke-search', async (req, res) => {
+  try { res.json(await karaoke.searchVideos(String(req.query.q || ''), req.query.scope === 'all' ? 'all' : 'zoom')); }
+  catch { res.json({ error: 'failed' }); }
+});
 app.get('/api/playlist', async (req, res) => {
   try {
     const out = await importPlaylist(req.query.url);
