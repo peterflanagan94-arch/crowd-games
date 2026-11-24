@@ -78,7 +78,7 @@ The website needs `DESKTOP_LICENCE_KEY` set to the Ed25519 private key (PEM) tha
 
 ## Accounts and payments
 
-Hosts sign up at `/signup` and confirm their email, which starts a one-off 7-day free trial (one per email address: case, `+tags` and Gmail dots count as the same address). After that, `/account` offers the £6.99 event pass (24 hours), £8.99 a month or £89.99 a year through Stripe Checkout. Guests never need an account. The DJ phone remote link still works without logging in, for that room only.
+Hosts sign up at `/signup` and confirm their email, which starts a one-off 7-day free trial (one per email address: case, `+tags` and Gmail dots count as the same address). After that, `/account` offers £8.99 a month or £89.99 a year through Stripe Checkout. Guests never need an account. The DJ phone remote link still works without logging in, for that room only.
 
 Accounts switch on when `DATABASE_URL` is set (Render Postgres). Without it the app keeps the `HOST_PASSWORD` lock below. Set these on the web service:
 

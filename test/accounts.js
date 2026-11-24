@@ -91,7 +91,9 @@ server.listen(0, async () => {
   assert.equal((await req('/api/quiz-categories', { cookie })).status, 401);
   const acct = await (await req('/account', { cookie })).text();
   assert.match(acct, /free trial has ended/);
-  assert.match(acct, /Event pass · £6.99 for 24h/);
+  assert.match(acct, /Monthly · £8.99 a month/);
+  assert.match(acct, /Yearly · £89.99 a year/);
+  assert.doesNotMatch(acct, /Event pass/);
   s.close();
   s = await hostSocket(cookie);
   assert.equal((await call(s, 'host:create')).error, 'Login required');
@@ -103,29 +105,19 @@ server.listen(0, async () => {
     return req('/billing/webhook', { body, headers: { 'stripe-signature': stripe.webhooks.generateTestHeaderString({ payload: body, secret: 'whsec_test' }), 'content-type': 'application/json' } });
   };
   assert.equal((await req('/billing/webhook', { body: '{}', headers: { 'stripe-signature': 't=1,v1=bad' } })).status, 400, 'unsigned webhook refused');
-  // Another product's sale on the same Stripe account is ignored, even if its metadata looks like ours.
-  await hook({ id: 'evt_0', type: 'checkout.session.completed', data: { object: {
-    id: 'cs_other', object: 'checkout.session', mode: 'payment', payment_status: 'paid', customer: 'cus_other',
-    metadata: { user_id: String(u.id), plan: 'pass' } } } });
-  assert.equal((await store.getUser(u.id)).pass_until, null, 'other apps\' checkouts ignored');
-  const passEvent = { id: 'evt_1', type: 'checkout.session.completed', data: { object: {
-    id: 'cs_test_pass1', object: 'checkout.session', mode: 'payment', payment_status: 'paid', customer: 'cus_123',
-    client_reference_id: String(u.id), metadata: { app: 'crowd-qr-games', user_id: String(u.id), plan: 'pass' } } } };
-  assert.equal((await hook(passEvent)).status, 200);
-  u = await store.getUser(u.id);
-  assert.equal(u.stripe_customer_id, 'cus_123');
-  const hours = (new Date(u.pass_until) - Date.now()) / 3600_000;
-  assert.ok(hours > 23.9 && hours <= 24, 'event pass is 24 hours');
-  await hook(passEvent); // Stripe can send the same event twice
-  assert.equal(+new Date((await store.getUser(u.id)).pass_until), +new Date(u.pass_until), 'pass not doubled');
-  assert.equal((await req('/host', { cookie })).status, 200);
-  assert.match(await (await req('/account', { cookie })).text(), /Event pass/);
-
-  // Monthly subscription, then cancelled.
-  await store.updateUser(u.id, { pass_until: null });
+  // Monthly subscription through Checkout, then cancelled.
   const end = Math.floor(Date.now() / 1000) + 30 * 86400;
   const sub = { id: 'sub_1', object: 'subscription', customer: 'cus_123', status: 'active', metadata: { app: 'crowd-qr-games', user_id: String(u.id), plan: 'monthly' },
     items: { data: [{ current_period_end: end, price: { recurring: { interval: 'month' } } }] } };
+  // Another product's sale on the same Stripe account is ignored, even if its metadata looks like ours.
+  await hook({ id: 'evt_0', type: 'checkout.session.completed', data: { object: {
+    id: 'cs_other', object: 'checkout.session', mode: 'subscription', payment_status: 'paid', customer: 'cus_other',
+    metadata: { user_id: String(u.id), plan: 'monthly' }, subscription: { ...sub, id: 'sub_other', customer: 'cus_other', metadata: { user_id: String(u.id), plan: 'monthly' } } } } });
+  assert.ok(!(await store.getUser(u.id)).sub_id, 'other apps\' checkouts ignored');
+  await hook({ id: 'evt_1', type: 'checkout.session.completed', data: { object: {
+    id: 'cs_test_m1', object: 'checkout.session', mode: 'subscription', payment_status: 'paid', customer: 'cus_123',
+    client_reference_id: String(u.id), metadata: { app: 'crowd-qr-games', user_id: String(u.id), plan: 'monthly' }, subscription: sub } } });
+  assert.equal((await store.getUser(u.id)).stripe_customer_id, 'cus_123');
   await hook({ id: 'evt_2', type: 'customer.subscription.created', data: { object: sub } });
   u = await store.getUser(u.id);
   assert.equal(u.sub_status, 'active');

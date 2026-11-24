@@ -7,7 +7,7 @@
 //   SESSION_SECRET         long random string that signs login cookies and email links
 //   STRIPE_SECRET_KEY      sk_test_... while testing, sk_live_... to take real money
 //   STRIPE_WEBHOOK_SECRET  whsec_... from the Stripe webhook pointing at /billing/webhook
-//   STRIPE_PRICE_PASS / STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY  optional Stripe price ids;
+//   STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY  optional Stripe price ids;
 //                          without them the prices below are sent to Stripe directly
 //   RESEND_API_KEY, EMAIL_FROM  for confirmation and password reset emails (else they're logged)
 //   ADMIN_EMAILS           comma separated emails that always have full access (no payment)
@@ -23,7 +23,6 @@ const licence = require('./licence');
 
 const DAY = 86_400_000;
 const PLANS = {
-  pass: { name: 'Event pass (24 hours)', amount: 699, mode: 'payment', price: process.env.STRIPE_PRICE_PASS },
   monthly: { name: 'Monthly', amount: 899, mode: 'subscription', interval: 'month', price: process.env.STRIPE_PRICE_MONTHLY },
   yearly: { name: 'Yearly', amount: 8999, mode: 'subscription', interval: 'year', price: process.env.STRIPE_PRICE_YEARLY },
 };
@@ -201,11 +200,7 @@ function createAccounts({ baseUrl }) {
     const u = userId && await store.getUser(userId);
     if (!u || !PLANS[plan]) return console.warn('Stripe checkout with no matching account', session.id);
     if (session.customer && session.customer !== u.stripe_customer_id) await store.updateUser(u.id, { stripe_customer_id: session.customer });
-    if (plan === 'pass') {
-      if (!(await store.recordPayment(session.id, u.id, plan))) return; // already counted
-      const from = Math.max(Date.now(), u.pass_until ? +new Date(u.pass_until) : 0);
-      await store.updateUser(u.id, { pass_until: new Date(from + DAY) });
-    } else if (session.subscription) {
+    if (session.subscription) {
       await store.recordPayment(session.id, u.id, plan);
       const sub = typeof session.subscription === 'string' ? await stripe.subscriptions.retrieve(session.subscription) : session.subscription;
       await syncSubscription(sub, u.id);
@@ -417,7 +412,6 @@ function createAccounts({ baseUrl }) {
       const plans = !choose ? '' : !stripe ? '<p class="muted small">Payments are coming soon.</p>' : `
         <div class="acct-plans">
           ${a.ok ? '<p class="muted small">Buy now or when your access runs out:</p>' : ''}
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="pass" /><button class="big-btn">🎟️ Event pass · £6.99 for 24h</button></form>
           <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="monthly" /><button class="primary big-btn">⭐ Monthly · £8.99 a month</button></form>
           <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="yearly" /><button class="big-btn">📅 Yearly · £89.99 a year</button></form>
         </div>`;
