@@ -436,19 +436,25 @@ function createAccounts({ baseUrl }) {
         },
       };
       const meta = { app: STRIPE_APP_TAG, user_id: String(u.id), plan: req.body.plan };
-      const session = await stripe.checkout.sessions.create({
-        mode: plan.mode,
-        line_items: [item],
-        success_url: `${base}/billing/done?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${base}/account`,
-        client_reference_id: String(u.id),
-        metadata: meta,
-        ...(u.stripe_customer_id ? { customer: u.stripe_customer_id } : { customer_email: u.email }),
-        ...(plan.mode === 'payment'
-          ? { invoice_creation: { enabled: true }, ...(u.stripe_customer_id ? {} : { customer_creation: 'always' }) }
-          : { subscription_data: { metadata: meta } }),
-        allow_promotion_codes: true,
-      });
+      let session;
+      try {
+        session = await stripe.checkout.sessions.create({
+          mode: plan.mode,
+          line_items: [item],
+          success_url: `${base}/billing/done?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${base}/account`,
+          client_reference_id: String(u.id),
+          metadata: meta,
+          ...(u.stripe_customer_id ? { customer: u.stripe_customer_id } : { customer_email: u.email }),
+          ...(plan.mode === 'payment'
+            ? { invoice_creation: { enabled: true }, ...(u.stripe_customer_id ? {} : { customer_creation: 'always' }) }
+            : { subscription_data: { metadata: meta } }),
+          allow_promotion_codes: true,
+        });
+      } catch (e) {
+        console.error('Checkout failed:', e.message);
+        return res.redirect('/account?err=' + encodeURIComponent("Payment couldn't start just now. Try again in a minute."));
+      }
       res.redirect(303, session.url);
     }));
 

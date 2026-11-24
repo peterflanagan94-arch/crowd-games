@@ -94,6 +94,9 @@ server.listen(0, async () => {
   assert.match(acct, /Monthly · £8.99 a month/);
   assert.match(acct, /Yearly · £89.99 a year/);
   assert.doesNotMatch(acct, /Event pass/);
+  // If Stripe refuses (bad key, outage), the host gets a friendly message, not a raw error page.
+  res = await req('/billing/checkout', { cookie, form: { plan: 'monthly' } });
+  assert.match(res.headers.get('location') || '', /^\/account\?err=Payment/);
   s.close();
   s = await hostSocket(cookie);
   assert.equal((await call(s, 'host:create')).error, 'Login required');
