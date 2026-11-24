@@ -252,6 +252,7 @@ function createAccounts({ baseUrl }) {
         <input type="password" name="password" placeholder="Password (8+ characters)" autocomplete="new-password" minlength="8" required aria-label="Password" />
         <button class="primary big-btn">Create account</button>
       </form>
+      <p class="muted small">By creating an account you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy policy</a>.</p>
       <p class="muted small">Already have an account? <a href="/login">Log in</a></p>`);
 
     app.get('/signup', withUser((_req, res, u) => (u ? res.redirect('/account') : res.send(signupForm()))));
