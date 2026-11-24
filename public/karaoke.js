@@ -24,7 +24,10 @@
     $('#kAddSinger').value = $('#kAddSong').value = $('#kAddLink').value = '';
   };
 
-  const ytSearch = (song) => `https://www.youtube.com/results?search_query=${encodeURIComponent(song + ' karaoke')}`;
+  // Zoom Karaoke lets its videos play on other sites, so look there first; "any channel" is the fallback.
+  const ytSearch = (song) => `https://www.youtube.com/@ZoomKaraokeOfficial/search?query=${encodeURIComponent(song.replace(/\s+-\s+/, ' '))}`;
+  const ytSearchAll = (song) => `https://www.youtube.com/results?search_query=${encodeURIComponent(song + ' karaoke')}`;
+  const finds = (song, label) => `<a href="${ytSearch(song)}" target="_blank" rel="noopener" title="Search Zoom Karaoke's channel: their videos play here">🔍 ${label} on Zoom Karaoke</a> <a href="${ytSearchAll(song)}" target="_blank" rel="noopener" class="muted" title="Search every YouTube channel">or anywhere</a>`;
   const k = (act, d = {}) => send('host:karaoke', { act, ...d });
 
   // ---------- DJ queue manager ----------
@@ -32,9 +35,9 @@
     const row = (e, i, now) => `<div class="kq-row ${now ? 'now' : ''}" data-id="${e.id}">
       <span class="kq-n">${now ? '🎤' : i + 1}</span>
       <span class="kq-who"><b>${esc(e.singer)}</b><small>${esc(e.song)}</small></span>
-      <span class="kq-yt">${e.yt && e.ytStatus === 'blocked' ? `<span class="bad" title="The channel doesn't allow this video to play on other sites">⚠ won't play here</span> <a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find another</a>`
-          : e.yt && e.ytStatus === 'missing' ? `<span class="bad">⚠ video not found</span> <a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find another</a>`
-          : e.yt ? `<span class="ok" title="Lyrics video linked">▶ video${e.ytStatus === 'ok' ? ' ✓' : ''}</span>` : `<a href="${ytSearch(e.song)}" target="_blank" rel="noopener">🔍 Find video</a>`}
+      <span class="kq-yt">${e.yt && e.ytStatus === 'blocked' ? `<span class="bad" title="The channel doesn't allow this video to play on other sites">⚠ won't play here</span> ${finds(e.song, 'Find another')}`
+          : e.yt && e.ytStatus === 'missing' ? `<span class="bad">⚠ video not found</span> ${finds(e.song, 'Find another')}`
+          : e.yt ? `<span class="ok" title="Lyrics video linked">▶ video${e.ytStatus === 'ok' ? ' ✓' : ''}${e.ytBy ? ` <small class="muted">${esc(e.ytBy)}</small>` : ''}</span>` : finds(e.song, 'Find video')}
         <input class="kq-link" placeholder="${e.yt ? 'Change link' : 'Paste YouTube link'}" /></span>
       ${now ? '' : `<span class="kq-btns"><button data-k="top" title="Move to the front">⤒</button><button data-k="up" title="Up">▲</button><button data-k="down" title="Down">▼</button><button data-k="remove" title="Remove">✕</button></span>`}
     </div>`;

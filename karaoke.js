@@ -87,7 +87,7 @@ function hostAction(room, act, d = {}) {
       const e = find(); if (!e) return 'That singer has gone.';
       if (d.link && !ytId(d.link)) return "That doesn't look like a YouTube link.";
       e.yt = ytId(d.link);
-      e.ytStatus = null;
+      e.ytStatus = null; e.ytBy = '';
       return null;
     }
     case 'video': g.video = !!d.on && !!g.current?.yt; return null;
@@ -99,22 +99,24 @@ function hostAction(room, act, d = {}) {
 
 // Ask YouTube (oEmbed) whether each newly linked video can play inside another site.
 // Many karaoke channels switch embedding off; better to know before the singer is up.
-const linkCache = new Map(); // yt id -> 'ok' | 'blocked' | 'missing'
+const linkCache = new Map(); // yt id -> { st: 'ok' | 'blocked' | 'missing', by: channel name }
 async function checkLinks(room, done) {
   const g = room.game;
   if (g?.type !== 'karaoke') return;
   const todo = [g.current, ...g.queue].filter((e) => e?.yt && !e.ytStatus);
   if (!todo.length) return;
   for (const e of todo) {
-    let st = linkCache.get(e.yt);
-    if (!st) {
+    let c = linkCache.get(e.yt);
+    if (!c) {
       try {
         const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/watch?v=' + e.yt)}`, { signal: AbortSignal.timeout(6000) });
-        st = r.ok ? 'ok' : r.status === 401 || r.status === 403 ? 'blocked' : r.status === 404 || r.status === 400 ? 'missing' : null;
-      } catch { st = null; }
-      if (st) linkCache.set(e.yt, st);
+        const st = r.ok ? 'ok' : r.status === 401 || r.status === 403 ? 'blocked' : r.status === 404 || r.status === 400 ? 'missing' : null;
+        const by = r.ok ? String((await r.json().catch(() => ({}))).author_name || '').slice(0, 60) : '';
+        if (st) linkCache.set(e.yt, (c = { st, by }));
+      } catch {}
     }
-    e.ytStatus = st || 'unknown';
+    e.ytStatus = c?.st || 'unknown';
+    e.ytBy = c?.by || '';
   }
   done();
 }
@@ -124,8 +126,8 @@ const pub = (e) => e && { id: e.id, singer: e.singer, song: e.song };
 function hostView(g) {
   return {
     type: 'karaoke', title: g.title, open: g.open, perGuest: g.perGuest, video: g.video, autoVideo: g.autoVideo !== false,
-    current: g.current && { ...pub(g.current), yt: g.current.yt, ytStatus: g.current.ytStatus, started: g.current.started },
-    queue: g.queue.map((e) => ({ ...pub(e), yt: e.yt, ytStatus: e.ytStatus, guest: !!e.pid })),
+    current: g.current && { ...pub(g.current), yt: g.current.yt, ytStatus: g.current.ytStatus, ytBy: g.current.ytBy, started: g.current.started },
+    queue: g.queue.map((e) => ({ ...pub(e), yt: e.yt, ytStatus: e.ytStatus, ytBy: e.ytBy, guest: !!e.pid })),
     played: g.played.length, now: Date.now(),
   };
 }
