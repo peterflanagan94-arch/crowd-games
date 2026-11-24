@@ -1,6 +1,7 @@
 // Popular karaoke songs, as ideas for guests and the DJ. One "Artist - Title" per line.
 // Built from UK "most sung" karaoke lists and Sing King's most-viewed karaoke videos.
-// KARAOKE_YT maps a song to a lyrics karaoke video on YouTube (checked with tools/karaoke-verify.js).
+// KARAOKE_YT (karaoke-youtube.json) maps a song to a Zoom Karaoke lyrics video on YouTube. Zoom lets its
+// videos play on other sites; each id was checked with YouTube's oEmbed endpoint (Nov 2026).
 const LISTS = {
   '🔥 Crowd favourites': `The Killers - Mr. Brightside
 ABBA - Dancing Queen

@@ -511,6 +511,13 @@ label.inline input { width: auto; }
 .kq-yt { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 .kq-yt a { color: var(--accent2); white-space: nowrap; } .kq-yt .ok { color: var(--good); white-space: nowrap; }
 .kq-yt .kq-link { width: 170px; padding: 6px 8px; font-size: 13px; }
+.kq-find { padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.kq-search { background: var(--panel2); border-radius: 10px; padding: 10px; margin: -2px 0 4px 44px; display: grid; gap: 8px; }
+.kq-search .kq-q { flex: 1; min-width: 180px; }
+.kq-results { display: grid; gap: 6px; }
+.kq-res { display: grid; grid-template-columns: 72px 1fr auto; gap: 10px; align-items: center; }
+.kq-res img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; }
+.kq-res a { color: var(--text, #fff); text-decoration: none; } .kq-res a:hover { text-decoration: underline; }
 .kq-btns { display: flex; gap: 4px; } .kq-btns button { padding: 6px 9px; }
 .kideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 10px 0; font-size: 13px; }
 .kidea ol { margin: 6px 0 0; padding-left: 1.4em; color: var(--muted); }
