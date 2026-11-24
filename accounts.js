@@ -14,6 +14,8 @@
 //   TRIAL_DAYS             length of the free trial, default 7
 //   DESKTOP_LICENCE_KEY    Ed25519 private key (PEM) that signs the desktop app's offline passes
 //   SIGNUPS=closed        pre-launch: only ADMIN_EMAILS can sign up, and the home page still says "coming soon"
+//   TESTER_EMAILS          comma separated emails that may sign up while SIGNUPS=closed, as normal
+//                          customers (free trial, then pay), for testing payments before launch
 const crypto = require('crypto');
 const express = require('express');
 const { memoryStore, pgStore } = require('./store');
@@ -88,6 +90,7 @@ function createAccounts({ baseUrl }) {
   const TRIAL_MS = (Number(process.env.TRIAL_DAYS) || 7) * DAY;
   const SIGNUPS_OPEN = process.env.SIGNUPS !== 'closed';
   const ADMINS = new Set(String(process.env.ADMIN_EMAILS || '').split(',').map(emailKey).filter(Boolean));
+  const TESTERS = new Set(String(process.env.TESTER_EMAILS || '').split(',').map(emailKey).filter(Boolean));
   let SECRET = process.env.SESSION_SECRET || '';
   if (!SECRET) {
     SECRET = crypto.randomBytes(32).toString('hex');
@@ -258,7 +261,7 @@ function createAccounts({ baseUrl }) {
       if (!validEmail(email)) return res.status(400).send(signupForm("That email doesn't look right.", email));
       if (password.length < 8 || password.length > 200) return res.status(400).send(signupForm('Use a password of at least 8 characters.', email));
       const key = emailKey(email);
-      if (!SIGNUPS_OPEN && !ADMINS.has(key)) return res.status(403).send(signupForm("Sign-ups aren't open yet. Check back soon!", email));
+      if (!SIGNUPS_OPEN && !ADMINS.has(key) && !TESTERS.has(key)) return res.status(403).send(signupForm("Sign-ups aren't open yet. Check back soon!", email));
       const u = await store.createUser({ email, email_key: key, pass_hash: hashPassword(password) });
       if (!u) return res.status(409).send(signupForm('That email already has an account (each email gets one free trial). Log in instead, or reset your password.', email));
       await sendVerify(req, u);
