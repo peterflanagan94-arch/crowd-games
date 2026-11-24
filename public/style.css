@@ -284,6 +284,17 @@ body.home { min-height: 100%; overflow-x: hidden; }
 .join-row { display: flex; gap: 10px; }
 .join-row input { width: 140px; text-transform: uppercase; letter-spacing: .2em; font-weight: 800; font-size: 20px; text-align: center; }
 .section { padding: 40px 0; }
+/* request a game */
+.request-card { max-width: 760px; margin: 0 auto; }
+.request-card h2 { margin: 0 0 4px; font-size: 24px; }
+.request-form { display: grid; gap: 10px; margin-top: 14px; }
+.request-form textarea { width: 100%; min-height: 96px; font-family: inherit; font-size: 16px; resize: vertical; }
+.request-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.request-row input[type=email] { flex: 1; min-width: 0; }
+.request-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.request-msg { margin: 0; font-weight: 600; }
+.request-msg.ok { color: var(--good); } .request-msg.err { color: var(--bad, #ff6b6b); }
+@media (max-width: 600px) { .request-row button { width: 100%; } }
 .section > h2 { font-size: clamp(26px, 4vw, 36px); margin-bottom: 24px; }
 .games { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .game { background: var(--panel); border-radius: 18px; padding: 22px; border: 1px solid #ffffff0a; }

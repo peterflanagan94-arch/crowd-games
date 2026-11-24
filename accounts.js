@@ -11,6 +11,7 @@
 //                          without them the prices below are sent to Stripe directly
 //   RESEND_API_KEY, EMAIL_FROM  for confirmation and password reset emails (else they're logged)
 //   ADMIN_EMAILS           comma separated emails that always have full access (no payment)
+//   REQUEST_EMAIL          where "Request a game" ideas are emailed (default: the first ADMIN_EMAILS address)
 //   TRIAL_DAYS             length of the free trial, default 7
 //   DESKTOP_LICENCE_KEY    Ed25519 private key (PEM) that signs the desktop app's offline passes
 //   SIGNUPS=closed        pre-launch: only ADMIN_EMAILS can sign up, and the home page still says "coming soon"
@@ -147,14 +148,14 @@ function createAccounts({ baseUrl }) {
   }
 
   // ---- email ----
-  async function sendEmail(to, subject, text) {
-    outbox.push({ to, subject, text });
+  async function sendEmail(to, subject, text, replyTo) {
+    outbox.push({ to, subject, text, replyTo });
     if (outbox.length > 50) outbox.shift();
     if (!process.env.RESEND_API_KEY) { console.log(`[email to ${to}] ${subject}\n${text}`); return; }
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM || 'Crowd QR Games <hello@crowdqrgames.com>', to, subject, text }),
+      body: JSON.stringify({ from: process.env.EMAIL_FROM || 'Crowd QR Games <hello@crowdqrgames.com>', to, subject, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
     });
     if (!r.ok) console.error('Email failed:', r.status, await r.text().catch(() => ''));
   }
@@ -236,6 +237,24 @@ function createAccounts({ baseUrl }) {
       try { event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET); } catch (e) { return res.status(400).send(`Bad signature: ${e.message}`); }
       await handleStripeEvent(event);
       res.json({ received: true });
+    }));
+
+    // "Request a game" on the home page: emails the idea to the owner.
+    app.post('/request-game', sameOrigin, form, withUser(async (req, res, u) => {
+      const wantsJson = (req.headers.accept || '').includes('application/json');
+      const done = (status, msg) => (wantsJson ? res.status(status).json(status === 200 ? { ok: true } : { error: msg }) : res.redirect(status === 200 ? '/?requested=1#request' : '/#request'));
+      const idea = String(req.body?.idea || '').trim().slice(0, 2000);
+      const from = String(req.body?.email || '').trim().slice(0, 200) || u?.email || '';
+      if (req.body?.website) return done(200); // filled in by bots only
+      if (idea.length < 3) return done(400, 'Tell us a little about the game.');
+      if (from && !validEmail(from)) return done(400, "That email doesn't look right.");
+      if (limited(req, 'request-game', 5, 3600_000)) return done(429, 'Thanks! That is plenty of ideas for now. Try again later.');
+      const to = process.env.REQUEST_EMAIL || String(process.env.ADMIN_EMAILS || '').split(',')[0].trim();
+      if (!to) { console.warn('Game request with no REQUEST_EMAIL or ADMIN_EMAILS set:', idea); return done(200); }
+      await sendEmail(to, `Game request: ${idea.split('\n')[0].slice(0, 60)}`,
+        `New "Request a game" idea from crowdqrgames.com:\n\n${idea}\n\n` +
+        `From: ${from || 'not given'}${u ? ` (${u.sub_status === 'active' ? 'subscriber' : 'has an account'})` : ''}\n`, from || undefined);
+      done(200);
     }));
 
     app.get('/auth/status', withUser((_req, res, u) => {

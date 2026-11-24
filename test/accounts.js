@@ -142,6 +142,19 @@ server.listen(0, async () => {
   await hook({ id: 'evt_3', type: 'customer.subscription.deleted', data: { object: { ...sub, status: 'canceled' } } });
   assert.equal((await req('/host', { cookie })).headers.get('location'), '/account');
 
+  // Request a game: emails the idea to the owner, with reply-to set to the sender.
+  const outbox = require('../server').accounts.outbox;
+  res = await req('/request-game', { form: { idea: 'Pub golf scorecard on phones', email: 'fan@example.com' }, headers: { accept: 'application/json' } });
+  assert.equal(res.status, 200);
+  assert.equal(outbox.at(-1).to, 'boss@example.com');
+  assert.match(outbox.at(-1).subject, /Game request: Pub golf/);
+  assert.equal(outbox.at(-1).replyTo, 'fan@example.com');
+  const before = outbox.length;
+  assert.equal((await req('/request-game', { form: { idea: 'spam', website: 'x' }, headers: { accept: 'application/json' } })).status, 200);
+  assert.equal(outbox.length, before, 'bot honeypot sends nothing');
+  assert.equal((await req('/request-game', { form: { idea: '' }, headers: { accept: 'application/json' } })).status, 400);
+  assert.equal((await req('/request-game', { form: { idea: 'No JS idea' } })).headers.get('location'), '/?requested=1#request');
+
   // Password reset logs out old sessions.
   await req('/forgot', { form: { email: 'peterf@gmail.com' } });
   const resetLink = lastLink('/reset');
