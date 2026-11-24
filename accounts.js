@@ -29,6 +29,7 @@ const PLANS = {
 };
 const PLAN_LABEL = { pass: 'Event pass', monthly: 'Monthly', yearly: 'Yearly', trial: 'Free trial', complimentary: 'Full access' };
 const LIVE_SUB = ['active', 'trialing', 'past_due'];
+const STRIPE_APP_TAG = 'crowd-qr-games';
 
 // One trial per email: case, "+anything" tags and Gmail's dots don't make a new address.
 function emailKey(raw) {
@@ -194,7 +195,7 @@ function createAccounts({ baseUrl }) {
     });
   }
   async function applyCheckout(session) {
-    if (session.payment_status !== 'paid') return;
+    if (session.payment_status !== 'paid' || !ours(session)) return;
     const userId = Number(session.metadata?.user_id || session.client_reference_id);
     const plan = session.metadata?.plan;
     const u = userId && await store.getUser(userId);
@@ -210,8 +211,12 @@ function createAccounts({ baseUrl }) {
       await syncSubscription(sub, u.id);
     }
   }
+  // The Stripe account may also sell other products (Studio on Screen), so only act on
+  // checkouts and subscriptions this app started.
+  const ours = (o) => o?.metadata?.app === STRIPE_APP_TAG;
   async function handleStripeEvent(event) {
     const o = event.data.object;
+    if (!ours(o)) return;
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') await applyCheckout(o);
     else if (event.type.startsWith('customer.subscription.')) await syncSubscription(o, Number(o.metadata?.user_id) || 0);
   }
@@ -436,7 +441,7 @@ function createAccounts({ baseUrl }) {
           ...(plan.interval ? { recurring: { interval: plan.interval } } : {}),
         },
       };
-      const meta = { user_id: String(u.id), plan: req.body.plan };
+      const meta = { app: STRIPE_APP_TAG, user_id: String(u.id), plan: req.body.plan };
       const session = await stripe.checkout.sessions.create({
         mode: plan.mode,
         line_items: [item],

@@ -103,9 +103,14 @@ server.listen(0, async () => {
     return req('/billing/webhook', { body, headers: { 'stripe-signature': stripe.webhooks.generateTestHeaderString({ payload: body, secret: 'whsec_test' }), 'content-type': 'application/json' } });
   };
   assert.equal((await req('/billing/webhook', { body: '{}', headers: { 'stripe-signature': 't=1,v1=bad' } })).status, 400, 'unsigned webhook refused');
+  // Another product's sale on the same Stripe account is ignored, even if its metadata looks like ours.
+  await hook({ id: 'evt_0', type: 'checkout.session.completed', data: { object: {
+    id: 'cs_other', object: 'checkout.session', mode: 'payment', payment_status: 'paid', customer: 'cus_other',
+    metadata: { user_id: String(u.id), plan: 'pass' } } } });
+  assert.equal((await store.getUser(u.id)).pass_until, null, 'other apps\' checkouts ignored');
   const passEvent = { id: 'evt_1', type: 'checkout.session.completed', data: { object: {
     id: 'cs_test_pass1', object: 'checkout.session', mode: 'payment', payment_status: 'paid', customer: 'cus_123',
-    client_reference_id: String(u.id), metadata: { user_id: String(u.id), plan: 'pass' } } } };
+    client_reference_id: String(u.id), metadata: { app: 'crowd-qr-games', user_id: String(u.id), plan: 'pass' } } } };
   assert.equal((await hook(passEvent)).status, 200);
   u = await store.getUser(u.id);
   assert.equal(u.stripe_customer_id, 'cus_123');
@@ -119,7 +124,7 @@ server.listen(0, async () => {
   // Monthly subscription, then cancelled.
   await store.updateUser(u.id, { pass_until: null });
   const end = Math.floor(Date.now() / 1000) + 30 * 86400;
-  const sub = { id: 'sub_1', object: 'subscription', customer: 'cus_123', status: 'active', metadata: { user_id: String(u.id), plan: 'monthly' },
+  const sub = { id: 'sub_1', object: 'subscription', customer: 'cus_123', status: 'active', metadata: { app: 'crowd-qr-games', user_id: String(u.id), plan: 'monthly' },
     items: { data: [{ current_period_end: end, price: { recurring: { interval: 'month' } } }] } };
   await hook({ id: 'evt_2', type: 'customer.subscription.created', data: { object: sub } });
   u = await store.getUser(u.id);
