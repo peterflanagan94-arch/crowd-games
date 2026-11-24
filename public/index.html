@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Crowd QR Games · Crowd games for any event</title>
   <meta name="description" content="Quizzes, bingo, music bingo and more that your crowd plays on their phones. Scan a QR code: no app needed." />
-  <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/icon.svg" />
   <meta name="theme-color" content="#0b0b14" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body class="glow home">
@@ -133,7 +133,7 @@
     </section>
   </main>
 
-  <footer class="hfoot muted">Crowd QR Games · Made for DJs</footer>
+  <footer class="hfoot muted">Crowd QR Games · Made for DJs · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></footer>
   <script>
     // Once accounts are switched on, the plan buttons lead to sign-up (or the account page).
     fetch('/auth/status').then((r) => r.json()).then((s) => {

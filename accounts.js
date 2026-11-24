@@ -191,6 +191,7 @@ function createAccounts({ baseUrl }) {
       sub_status: sub.status,
       sub_plan: sub.metadata?.plan || (interval === 'year' ? 'yearly' : 'monthly'),
       sub_period_end: periodEnd(sub) ? new Date(periodEnd(sub) * 1000) : null,
+      sub_cancel_at_end: !!(sub.cancel_at_period_end || sub.cancel_at),
     });
   }
   async function applyCheckout(session) {
@@ -251,6 +252,7 @@ function createAccounts({ baseUrl }) {
         <input type="password" name="password" placeholder="Password (8+ characters)" autocomplete="new-password" minlength="8" required aria-label="Password" />
         <button class="primary big-btn">Create account</button>
       </form>
+      <p class="muted small">By creating an account you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy policy</a>.</p>
       <p class="muted small">Already have an account? <a href="/login">Log in</a></p>`);
 
     app.get('/signup', withUser((_req, res, u) => (u ? res.redirect('/account') : res.send(signupForm()))));
@@ -400,9 +402,11 @@ function createAccounts({ baseUrl }) {
           ${req.query.sent ? note('Sent again. It can take a minute, and check your spam folder.', 'ok') : ''}
           <form method="post" action="/verify/resend"><button class="big-btn">Send the link again</button></form>`;
       } else if (a.ok) {
-        const until = a.until ? (a.sub ? `Renews ${fmtDate(a.until)}` : `Until ${fmtDate(a.until)}`) : '';
+        const until = a.until ? (a.sub ? `${u.sub_cancel_at_end ? 'Ends' : 'Renews'} ${fmtDate(a.until)}` : `Until ${fmtDate(a.until)}`) : '';
         status = `<h2>${req.query.welcome ? "You're in! 🎉" : req.query.paid ? 'Thanks, payment received 🎉' : 'Your account'}</h2>
           <p class="acct-plan"><b>${esc(PLAN_LABEL[a.plan] || a.plan)}</b>${until ? ` <span class="muted">· ${esc(until)}</span>` : ''}</p>
+          ${req.query.cancelled ? note("Cancelled. You keep full access until the date above, and you won't be charged again.", 'ok') : ''}
+          ${req.query.resumed ? note('Your subscription is back on.', 'ok') : ''}
           <a href="/host"><button class="primary big-btn">Host a game</button></a>`;
       } else {
         status = `<h2>Your ${u.pass_until || u.sub_id ? 'access has' : 'free trial has'} ended</h2>
@@ -415,9 +419,12 @@ function createAccounts({ baseUrl }) {
           <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="monthly" /><button class="primary big-btn">⭐ Monthly · £8.99 a month</button></form>
           <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="yearly" /><button class="big-btn">📅 Yearly · £89.99 a year</button></form>
         </div>`;
+      const cancel = !stripe || !a.sub ? '' : u.sub_cancel_at_end
+        ? '<form method="post" action="/billing/resume"><button class="big-btn">↩️ Keep my subscription</button></form>'
+        : '<a href="/billing/cancel"><button class="big-btn">Cancel subscription</button></a>';
       const manage = stripe && u.stripe_customer_id && u.sub_id
-        ? '<form method="post" action="/billing/portal"><button class="big-btn">Manage subscription or card</button></form>' : '';
-      res.send(page('Account', `${status}${note(req.query.err)}${plans}${manage}
+        ? '<form method="post" action="/billing/portal"><button class="big-btn">Update card or see invoices</button></form>' : '';
+      res.send(page('Account', `${status}${note(req.query.err)}${plans}${cancel}${manage}
         <p class="muted small">${esc(u.email)} · <a href="/logout">Log out</a></p>`));
     }));
 
@@ -436,19 +443,25 @@ function createAccounts({ baseUrl }) {
         },
       };
       const meta = { app: STRIPE_APP_TAG, user_id: String(u.id), plan: req.body.plan };
-      const session = await stripe.checkout.sessions.create({
-        mode: plan.mode,
-        line_items: [item],
-        success_url: `${base}/billing/done?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${base}/account`,
-        client_reference_id: String(u.id),
-        metadata: meta,
-        ...(u.stripe_customer_id ? { customer: u.stripe_customer_id } : { customer_email: u.email }),
-        ...(plan.mode === 'payment'
-          ? { invoice_creation: { enabled: true }, ...(u.stripe_customer_id ? {} : { customer_creation: 'always' }) }
-          : { subscription_data: { metadata: meta } }),
-        allow_promotion_codes: true,
-      });
+      let session;
+      try {
+        session = await stripe.checkout.sessions.create({
+          mode: plan.mode,
+          line_items: [item],
+          success_url: `${base}/billing/done?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${base}/account`,
+          client_reference_id: String(u.id),
+          metadata: meta,
+          ...(u.stripe_customer_id ? { customer: u.stripe_customer_id } : { customer_email: u.email }),
+          ...(plan.mode === 'payment'
+            ? { invoice_creation: { enabled: true }, ...(u.stripe_customer_id ? {} : { customer_creation: 'always' }) }
+            : { subscription_data: { metadata: meta } }),
+          allow_promotion_codes: true,
+        });
+      } catch (e) {
+        console.error('Checkout failed:', e.message);
+        return res.redirect('/account?err=' + encodeURIComponent("Payment couldn't start just now. Try again in a minute."));
+      }
       res.redirect(303, session.url);
     }));
 
@@ -463,6 +476,29 @@ function createAccounts({ baseUrl }) {
       }
       res.redirect('/account?paid=1');
     }));
+
+    // Cancel at the end of the paid period, after a confirm page. Resume undoes it until then.
+    const liveSub = (u) => u && stripe && u.sub_id && access(u).sub;
+    app.get('/billing/cancel', withUser((req, res, u) => {
+      if (!liveSub(u)) return res.redirect(u ? '/account' : '/login?next=/account');
+      res.send(page('Cancel subscription', `<h2>Cancel your subscription?</h2>
+        <p class="muted">You keep full access until <b>${esc(fmtDate(u.sub_period_end))}</b>, and you won't be charged again. You can change your mind any time before then.</p>
+        <form method="post" action="/billing/cancel"><button class="big-btn">Yes, cancel my subscription</button></form>
+        <a href="/account"><button class="primary big-btn">No, keep it</button></a>`));
+    }));
+    const setCancel = (cancel) => withUser(async (req, res, u) => {
+      if (!liveSub(u)) return res.redirect(u ? '/account' : '/login?next=/account');
+      try {
+        const sub = await stripe.subscriptions.update(u.sub_id, { cancel_at_period_end: cancel });
+        await syncSubscription(sub, u.id);
+        res.redirect(cancel ? '/account?cancelled=1' : '/account?resumed=1');
+      } catch (e) {
+        console.error(`Subscription ${cancel ? 'cancel' : 'resume'} failed:`, e.message);
+        res.redirect('/account?err=' + encodeURIComponent("Couldn't change your subscription just now. Try again in a minute."));
+      }
+    });
+    app.post('/billing/cancel', sameOrigin, setCancel(true));
+    app.post('/billing/resume', sameOrigin, setCancel(false));
 
     app.post('/billing/portal', sameOrigin, withUser(async (req, res, u) => {
       if (!u) return res.redirect('/login?next=/account');

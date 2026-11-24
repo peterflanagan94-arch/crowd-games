@@ -46,8 +46,9 @@ const setHostCookie = (req, res) => {
 };
 
 // Keep it out of search engines until launch.
-app.use((_req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex, nofollow'); next(); });
-app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nDisallow: /\n'));
+// Search engines may list the home page, terms and privacy. Game, host and account pages stay out.
+app.get('/robots.txt', (_req, res) => res.type('text/plain').send(
+  'User-agent: *\nDisallow: /host\nDisallow: /play\nDisallow: /api/\nDisallow: /account\nDisallow: /login\nDisallow: /signup\nDisallow: /billing/\nDisallow: /yt-player\n'));
 
 // Host accounts (when DATABASE_URL or ACCOUNTS=memory is set) replace the shared password.
 // The desktop app never uses website accounts locally: it has its own offline pass.

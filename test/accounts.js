@@ -94,6 +94,9 @@ server.listen(0, async () => {
   assert.match(acct, /Monthly · £8.99 a month/);
   assert.match(acct, /Yearly · £89.99 a year/);
   assert.doesNotMatch(acct, /Event pass/);
+  // If Stripe refuses (bad key, outage), the host gets a friendly message, not a raw error page.
+  res = await req('/billing/checkout', { cookie, form: { plan: 'monthly' } });
+  assert.match(res.headers.get('location') || '', /^\/account\?err=Payment/);
   s.close();
   s = await hostSocket(cookie);
   assert.equal((await call(s, 'host:create')).error, 'Login required');
@@ -125,7 +128,17 @@ server.listen(0, async () => {
   assert.equal((await req('/host', { cookie })).status, 200);
   const subPage = await (await req('/account', { cookie })).text();
   assert.match(subPage, /Monthly.*Renews/s);
-  assert.match(subPage, /Manage subscription/);
+  assert.match(subPage, /Update card or see invoices/);
+  assert.match(subPage, /href="\/billing\/cancel"/, 'account page has a cancel button');
+  assert.match(await (await req('/billing/cancel', { cookie })).text(), /keep full access until/);
+  res = await req('/billing/cancel', { cookie, form: {} });
+  assert.match(res.headers.get('location') || '', /^\/account\?err=/, 'Stripe refusing a cancel shows a message');
+  // Stripe confirms the cancel (from our button or its portal): access stays until the period ends.
+  await hook({ id: 'evt_2c', type: 'customer.subscription.updated', data: { object: { ...sub, cancel_at_period_end: true } } });
+  const endingPage = await (await req('/account', { cookie })).text();
+  assert.match(endingPage, /Monthly.*Ends/s);
+  assert.match(endingPage, /Keep my subscription/);
+  assert.equal((await req('/host', { cookie })).status, 200, 'still hosting until the end date');
   await hook({ id: 'evt_3', type: 'customer.subscription.deleted', data: { object: { ...sub, status: 'canceled' } } });
   assert.equal((await req('/host', { cookie })).headers.get('location'), '/account');
 
