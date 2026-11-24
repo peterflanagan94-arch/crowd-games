@@ -91,7 +91,7 @@ server.listen(0, async () => {
   assert.equal((await req('/api/quiz-categories', { cookie })).status, 401);
   const acct = await (await req('/account', { cookie })).text();
   assert.match(acct, /free trial has ended/);
-  assert.match(acct, /Event pass · £9.99 for 24h/);
+  assert.match(acct, /Event pass · £6.99 for 24h/);
   s.close();
   s = await hostSocket(cookie);
   assert.equal((await call(s, 'host:create')).error, 'Login required');

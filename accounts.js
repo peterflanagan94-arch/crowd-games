@@ -23,9 +23,9 @@ const licence = require('./licence');
 
 const DAY = 86_400_000;
 const PLANS = {
-  pass: { name: 'Event pass (24 hours)', amount: 999, mode: 'payment', price: process.env.STRIPE_PRICE_PASS },
-  monthly: { name: 'Monthly', amount: 1299, mode: 'subscription', interval: 'month', price: process.env.STRIPE_PRICE_MONTHLY },
-  yearly: { name: 'Yearly', amount: 12900, mode: 'subscription', interval: 'year', price: process.env.STRIPE_PRICE_YEARLY },
+  pass: { name: 'Event pass (24 hours)', amount: 699, mode: 'payment', price: process.env.STRIPE_PRICE_PASS },
+  monthly: { name: 'Monthly', amount: 899, mode: 'subscription', interval: 'month', price: process.env.STRIPE_PRICE_MONTHLY },
+  yearly: { name: 'Yearly', amount: 8999, mode: 'subscription', interval: 'year', price: process.env.STRIPE_PRICE_YEARLY },
 };
 const PLAN_LABEL = { pass: 'Event pass', monthly: 'Monthly', yearly: 'Yearly', trial: 'Free trial', complimentary: 'Full access' };
 const LIVE_SUB = ['active', 'trialing', 'past_due'];
@@ -417,9 +417,9 @@ function createAccounts({ baseUrl }) {
       const plans = !choose ? '' : !stripe ? '<p class="muted small">Payments are coming soon.</p>' : `
         <div class="acct-plans">
           ${a.ok ? '<p class="muted small">Buy now or when your access runs out:</p>' : ''}
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="pass" /><button class="big-btn">🎟️ Event pass · £9.99 for 24h</button></form>
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="monthly" /><button class="primary big-btn">⭐ Monthly · £12.99 a month</button></form>
-          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="yearly" /><button class="big-btn">📅 Yearly · £129 a year</button></form>
+          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="pass" /><button class="big-btn">🎟️ Event pass · £6.99 for 24h</button></form>
+          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="monthly" /><button class="primary big-btn">⭐ Monthly · £8.99 a month</button></form>
+          <form method="post" action="/billing/checkout"><input type="hidden" name="plan" value="yearly" /><button class="big-btn">📅 Yearly · £89.99 a year</button></form>
         </div>`;
       const manage = stripe && u.stripe_customer_id && u.sub_id
         ? '<form method="post" action="/billing/portal"><button class="big-btn">Manage subscription or card</button></form>' : '';
