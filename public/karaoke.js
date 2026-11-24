@@ -137,7 +137,17 @@
     if (playingId) core?.stop();
     playingId = null; box.hidden = true;
   }
+  // Tell the server where the video is, so the singer's phone can follow along.
+  let sentAt = null;
+  function report(at) {
+    if (!playingId) return;
+    if (at != null && sentAt != null && Math.abs(at - sentAt) < 1500) return;
+    sentAt = at;
+    send('host:karaoke', { act: 'videoAt', key: playingId, at });
+  }
   function onYt(e) {
+    if (e.type === 'time' && e.cur > 0.5) report(Date.now() + clockOffset - e.cur * 1000);
+    if (e.type === 'state' && !e.playing) sentAt = null; // paused or buffering: send the new position once it plays again
     if (e.type === 'ended') { stop(); send('host:karaoke', { act: 'video', on: false }); }
     if (e.type === 'error') {
       stop(); send('host:karaoke', { act: 'video', on: false });
@@ -158,7 +168,7 @@
     box.hidden = false;
     const id = `${want.id}:${want.yt}`;
     if (playingId === id) return;
-    playingId = id;
+    playingId = id; sentAt = null;
     core ||= new YTCore($('#kPlayer'), onYt);
     core.play({ id: want.yt, mode: 'full' });
   }

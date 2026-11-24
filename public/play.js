@@ -171,7 +171,34 @@ function renderKaraoke(g) {
     }
   }
   st.innerHTML = status;
+  kLyricsShow(g);
   st.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => socket.emit('player:karaokeCancel', { id: b.dataset.cancel })));
+}
+// The singer's own phone can show the lyrics video too: muted (the sound comes from the
+// big screen), started at the same point. Kept outside #kStatus so it isn't reloaded on every update.
+let kLyricsOn = true, kLyricsSrc = { id: null, at: null };
+function kLyricsShow(g) {
+  let box = $('#kLyrics');
+  const want = g.lyrics;
+  if (!want) { box?.remove(); kLyricsSrc = { id: null, at: null }; return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'kLyrics';
+    box.className = 'klyrics';
+    $('#kStatus').after(box);
+  }
+  if (!kLyricsOn) {
+    if (!box.querySelector('[data-lyrics=on]')) box.innerHTML = '<button data-lyrics="on">📺 Show the lyrics on my phone</button>';
+    kLyricsSrc = { id: null, at: null };
+  } else if (want.at == null && want.id !== kLyricsSrc.id) {
+    box.innerHTML = '<div class="muted center">The lyrics will appear here when the video starts…</div>';
+  } else if (want.at != null && (want.id !== kLyricsSrc.id || Math.abs(want.at - kLyricsSrc.at) > 2000)) {
+    kLyricsSrc = { id: want.id, at: want.at };
+    const start = Math.max(0, Math.round((Date.now() + clockOffset - want.at) / 1000));
+    box.innerHTML = `<div class="klyrics-video"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(want.id)}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&start=${start}" allow="autoplay; encrypted-media" title="Lyrics video"></iframe></div>
+      <div class="bar" style="justify-content:space-between"><span class="muted">Muted: the sound is on the big screen</span><button data-lyrics="off">Hide</button></div>`;
+  }
+  box.querySelectorAll('[data-lyrics]').forEach((b) => (b.onclick = () => { kLyricsOn = b.dataset.lyrics === 'on'; kLyricsSrc = { id: null, at: null }; box.innerHTML = ''; kLyricsShow(g); }));
 }
 function kSongs() {
   const el = $('#kSongs');
