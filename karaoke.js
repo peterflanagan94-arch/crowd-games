@@ -119,6 +119,13 @@ function hostAction(room, act, d = {}) {
       return null;
     }
     case 'video': g.video = !!d.on && !!g.current?.yt; return null;
+    // The big screen says when the current video's 0:00 was (server clock), so the singer's
+    // phone can show the same lyrics video in step. null while paused.
+    case 'videoAt': {
+      const at = Number(d.at);
+      g.videoAt = g.current?.yt && d.key === `${g.current.id}:${g.current.yt}` && Number.isFinite(at) ? { key: d.key, at } : null;
+      return null;
+    }
     case 'open': g.open = !!d.open; return null;
     case 'autoVideo': g.autoVideo = !!d.on; return null;
     default: return 'Unknown action';
@@ -167,7 +174,10 @@ function playerView(g, p) {
     current: pub(g.current), onNow: g.current?.pid === p.id,
     next: g.queue.slice(0, 5).map(pub),
     mine: g.queue.map((e, i) => (e.pid === p.id ? { ...pub(e), pos: i + 1 } : null)).filter(Boolean),
-    upNext: pos === 0, queueLength: g.queue.length,
+    upNext: pos === 0, queueLength: g.queue.length, now: Date.now(),
+    // Lyrics on the singer's own phone: the same video as the big screen, muted, in step with it.
+    lyrics: g.current?.pid === p.id && g.video && g.current.yt
+      ? { id: g.current.yt, at: g.videoAt?.key === `${g.current.id}:${g.current.yt}` ? g.videoAt.at : null } : null,
   };
 }
 
